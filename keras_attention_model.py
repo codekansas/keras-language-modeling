@@ -6,7 +6,8 @@ from __future__ import print_function
 import os
 
 from keras.engine import Merge
-from keras.layers import Lambda, MaxPooling1D, Dense, Flatten, Dropout, Masking, Embedding, TimeDistributed
+from keras.layers import Lambda, MaxPooling1D, Dense, Flatten, Dropout, Masking, Embedding, TimeDistributed, \
+    Convolution1D
 from keras.optimizers import SGD
 
 from word_embeddings import Word2VecEmbedding
@@ -29,8 +30,8 @@ def make_model(maxlen, n_words, n_lstm_dims=141, n_embed_dims=128):
     answer_bad = Input(shape=(maxlen,), dtype='int32')
 
     # language model
-    # embedding = Embedding(n_words, n_embed_dims)
-    embedding = Word2VecEmbedding(os.path.join(models_path, 'word2vec.model'))
+    embedding = Embedding(n_words, n_embed_dims)
+    # embedding = Word2VecEmbedding(os.path.join(models_path, 'word2vec.model'))
 
     # forward and backward lstms
     f_lstm = LSTM(n_lstm_dims, return_sequences=True)
@@ -43,6 +44,7 @@ def make_model(maxlen, n_words, n_lstm_dims=141, n_embed_dims=128):
     q_fl = f_lstm(q_emb)
     q_bl = b_lstm(q_emb)
     q_out = merge([q_fl, q_bl], mode='concat', concat_axis=2)
+    q_out = Convolution1D(64, 5)(q_out)
     q_out = MaxPooling1D()(q_out)
     q_out = Flatten()(q_out)
 
@@ -50,11 +52,14 @@ def make_model(maxlen, n_words, n_lstm_dims=141, n_embed_dims=128):
     f_lstm_attention = AttentionLSTM(n_lstm_dims, q_out, return_sequences=True)
     b_lstm_attention = AttentionLSTM(n_lstm_dims, q_out, go_backwards=True, return_sequences=True)
 
+    conv = Convolution1D(64, 5)
+
     # answer part
     ag_emb = embedding(answer_good)
     ag_fl = f_lstm_attention(ag_emb)
     ag_bl = b_lstm_attention(ag_emb)
     ag_out = merge([ag_fl, ag_bl], mode='concat', concat_axis=2)
+    ag_out = conv(ag_out)
     ag_out = MaxPooling1D()(ag_out)
     ag_out = Flatten()(ag_out)
 
@@ -62,6 +67,7 @@ def make_model(maxlen, n_words, n_lstm_dims=141, n_embed_dims=128):
     ab_fl = f_lstm_attention(ab_emb)
     ab_bl = b_lstm_attention(ab_emb)
     ab_out = merge([ab_fl, ab_bl], mode='concat', concat_axis=2)
+    ab_out = conv(ab_out)
     ab_out = MaxPooling1D()(ab_out)
     ab_out = Flatten()(ab_out)
 

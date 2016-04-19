@@ -1,4 +1,5 @@
 Single-layer bi-LSTM with max pooling, 40 words per sentence, loss margin of 0.2
  - MRR ~0.17
  - Seemed to converge after about 20 epochs, with randomization between epochs
+ - Using the pure embedding layer worked better than using the Word2Vec model (gave MRR ~0.09)
 

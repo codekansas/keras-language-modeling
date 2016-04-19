@@ -148,6 +148,7 @@ def get_mrr(model, questions, all_answers, n_good, n_eval=-1):
         r = rankdata(sims)
 
         x = 1 / float(max(r) - max(r[:n_good[i]]) + 1)
+        print(max(r) - max(r[:n_good[i]] + 1))
 
         c += x
 
@@ -175,6 +176,7 @@ qv_data, avg_data, avb_data, v_targets = get_data(data_sets[1])
 # found through experimentation that ~24 epochs generalized the best
 print('Fitting model')
 for i in range(100):
+    print(i)
     np.random.shuffle(ab_data)
     train_model.fit([q_data, ag_data, ab_data], targets, nb_epoch=1, batch_size=128, validation_data=[[qv_data, avg_data, avb_data], v_targets], shuffle=True)
 
