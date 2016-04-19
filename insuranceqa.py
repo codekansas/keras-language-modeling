@@ -11,8 +11,9 @@ from scipy.stats import rankdata
 random.seed(42)
 
 data_path = '/media/moloch/HHD/MachineLearning/data/insuranceQA'
+models_path = 'models/'
 
-emb_d = pickle.load(open('word2vec.dict', 'rb'))
+emb_d = pickle.load(open(os.path.join(models_path, 'word2vec.dict'), 'rb'))
 rev_d = dict([(v, k) for k, v in emb_d.items()])
 
 with open(os.path.join(data_path, 'vocabulary'), 'r') as f:
@@ -55,6 +56,7 @@ def get_eval(f_name):
 
     q_data = list()
     a_data = list()
+    n_good = list()
 
     for qa_pair in lines.split('\n'):
         if len(qa_pair) == 0: continue
@@ -62,13 +64,14 @@ def get_eval(f_name):
         a, q, g = qa_pair.split('\t')
 
         good_answers = [int(i) for i in a.strip().split(' ')]
-        all_answers = set([int(i) for i in g.strip().split(' ') if i not in good_answers])
+        all_answers = [int(i) for i in g.strip().split(' ')]
 
         question = convert_from_idxs(q)
         q_data.append(pad_sequences([question], maxlen=maxlen, padding='post', truncating='post', value=22295))
-        a_data.append(pad_sequences([answers[i] for i in [good_answers[0]] + list(all_answers)], maxlen=maxlen, padding='post', truncating='post', value=22295))
+        a_data.append(pad_sequences([answers[i] for i in all_answers], maxlen=maxlen, padding='post', truncating='post', value=22295))
+        n_good.append(len(good_answers))
 
-    return q_data, a_data
+    return q_data, a_data, n_good
 
 
 def get_data(f_name):
@@ -126,11 +129,12 @@ def get_accurate_percentage(model, questions, good_answers, bad_answers, n_eval=
     return correct
 
 
-def get_mrr(model, questions, all_answers, n_eval=512):
+def get_mrr(model, questions, all_answers, n_good, n_eval=-1):
 
-    if n_eval != 'all':
+    if n_eval != -1:
         questions = questions[-n_eval:]
         all_answers = all_answers[-n_eval:]
+        n_good = n_good[-n_eval:]
 
     c = 0
 
@@ -143,15 +147,7 @@ def get_mrr(model, questions, all_answers, n_eval=512):
         sims = model.predict([qs, ans]).flatten()
         r = rankdata(sims)
 
-        print(i)
-        print(revert(answers[np.argmax(r)]))
-        print(revert(question[0]))
-
-        print(sims)
-        print(r)
-
-        x = 1 / float(max(r) - r[0] + 1)
-        print(x)
+        x = 1 / float(max(r) - max(r[:n_good[i]]) + 1)
 
         c += x
 
@@ -173,20 +169,22 @@ data_sets = [
     'question.test1.label.token_idx.pool',
     'question.test2.label.token_idx.pool',
 ]
-# d_set = data_sets[1]
-# q_data, ag_data, ab_data, targets = get_data(d_set)
+q_data, ag_data, ab_data, targets = get_data(data_sets[0])
+qv_data, avg_data, avb_data, v_targets = get_data(data_sets[1])
 
 # found through experimentation that ~24 epochs generalized the best
-# print('Fitting model')
-# train_model.fit([q_data, ag_data, ab_data], targets, nb_epoch=24, batch_size=128, validation_split=0.2)
-# train_model.save_weights('iqa_model_for_training.h5', overwrite=True)
-# test_model.save_weights('iqa_model_for_prediction.h5', overwrite=True)
+print('Fitting model')
+for i in range(100):
+    np.random.shuffle(ab_data)
+    train_model.fit([q_data, ag_data, ab_data], targets, nb_epoch=1, batch_size=128, validation_data=[[qv_data, avg_data, avb_data], v_targets], shuffle=True)
+
+train_model.save_weights(os.path.join(models_path, 'iqa_model_for_training.h5'), overwrite=True)
+test_model.save_weights(os.path.join(models_path, 'iqa_model_for_prediction.h5'), overwrite=True)
 
 # the model actually did really well, predicted correct vs. incorrect answer 85% of the time on the validation set
-# test_model.load_weights('iqa_model_for_prediction.h5')
+# test_model.load_weights(os.path.join(models_path, 'iqa_model_for_prediction.h5'))
 # print('Percent correct: {}'.format(get_accurate_percentage(test_model, q_data, ag_data, ab_data, n_eval='all')))
 
-d_set = data_sets[1]
-q_data, a_data = get_eval(d_set)
-test_model.load_weights('iqa_model_for_prediction.h5')
-print('MRR: {}'.format(get_mrr(test_model, q_data, a_data)))
+q_data, a_data, n_good = get_eval(data_sets[1])
+# test_model.load_weights(os.path.join(models_path, 'iqa_model_for_prediction.h5'))
+print('MRR: {}'.format(get_mrr(test_model, q_data, a_data, n_good)))

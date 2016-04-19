@@ -6,17 +6,18 @@ import os
 import numpy as np
 from keras.preprocessing.sequence import pad_sequences
 
-from language_model.dictionary import Dictionary
+from utils.dictionary import Dictionary
 
 rng = np.random.RandomState(42)
 
+models_path = 'models/'
 file_name = 'liveqa-2015-rels.txt'
-dict_path = 'dict.pkl'
+dict_path = os.path.join(models_path, 'dict.pkl')
+
 
 #################
 # Download data #
 #################
-
 
 def download_data():
     from tqdm import tqdm
@@ -25,20 +26,20 @@ def download_data():
     url = 'https://raw.githubusercontent.com/codekansas/ml/master/theano_stuff/ir/LiveQA2015-qrels-ver2.txt'
     response = requests.get(url, stream=True)
 
-    with open(file_name, 'wb') as handle:
+    with open(os.path.join(models_path, file_name), 'wb') as handle:
         for data in tqdm(response.iter_content()):
             handle.write(data)
+
 
 #################
 # Load QA pairs #
 #################
 
-
 def load_qa_pairs():
-    if not os.path.exists(file_name):
+    if not os.path.exists(os.path.join(models_path, file_name)):
         download_data()
 
-    with open(file_name, 'r') as f:
+    with open(os.path.join(models_path, file_name), 'r') as f:
         lines = re.split('\n|\r', f.read()) # for cross-system compatibility (not sure about windows)
 
     questions = dict()
@@ -65,6 +66,7 @@ def load_qa_pairs():
 
     return questions, answers
 
+
 #####################
 # Create dictionary #
 #####################
@@ -89,10 +91,10 @@ def create_dictionary_from_qas(questions=None, answers=None):
 
     return dic
 
+
 #################
 # Training set #
 ################
-
 
 def get_data_set(maxlen, questions=None, answers=None, dic=None):
 
@@ -118,8 +120,8 @@ def get_data_set(maxlen, questions=None, answers=None, dic=None):
         targets += [0] * m
 
     targets = np.asarray(targets)
-    qs = pad_sequences(qs, maxlen=maxlen, padding='post', truncating='post')
-    gans = pad_sequences(gans, maxlen=maxlen, padding='post', truncating='post')
-    bans = pad_sequences(bans, maxlen=maxlen, padding='post', truncating='post')
+    qs = pad_sequences(qs, maxlen=maxlen, padding='post', truncating='post', dtype='int32')
+    gans = pad_sequences(gans, maxlen=maxlen, padding='post', truncating='post', dtype='int32')
+    bans = pad_sequences(bans, maxlen=maxlen, padding='post', truncating='post', dtype='int32')
 
     return targets, qs, gans, bans, len(dic)

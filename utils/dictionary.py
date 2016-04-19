@@ -5,8 +5,6 @@ try:
 except ImportError:
     import pickle
 
-import sys
-
 from numpy import asarray
 import numpy as np
 from gensim.utils import tokenize

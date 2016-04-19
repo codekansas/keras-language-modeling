@@ -1,16 +1,20 @@
 import os
+
+import operator
 from gensim.models import Word2Vec
 from keras.engine import Layer
 import pickle
 
 import keras.backend as K
 
+models_path = 'models/'
+
 
 class Word2VecEmbedding(Layer):
     def __init__(self, model_path, **kwargs):
-        model = Word2Vec.load(model_path)
-        self.W = K.variable(model.syn0)
-        self.model_dims = model.syn0.shape
+        self.model = Word2Vec.load(model_path)
+        self.W = K.variable(self.model.syn0)
+        self.model_dims = self.model.syn0.shape
         super(Word2VecEmbedding, self).__init__(**kwargs)
 
     def build(self, input_shape):
@@ -21,6 +25,7 @@ class Word2VecEmbedding(Layer):
         return (input_shape[0], input_shape[1], self.model_dims[1])
 
     def call(self, x, mask=None):
+        x = K.maximum(K.minimum(x, self.model_dims[1] - 1), 0)
         return K.gather(self.W, x)
 
 
@@ -74,16 +79,20 @@ def train_model():
     sentences = questions + answers
 
     model = Word2Vec(sentences, size=100, min_count=1)
-    model.save('word2vec.model')
+    model.save(os.path.join(models_path, 'word2vec.model'))
 
 if __name__ == '__main__':
+    print('Training word2vec model..')
+
     train_model()
-    model = Word2Vec.load('word2vec.model')
+    model = Word2Vec.load(os.path.join(models_path, 'word2vec.model'))
+
+    print('Done! Saving...')
 
     d = dict([(k, v.index) for k, v in model.vocab.items()])
-    pickle.dump(d, open('word2vec.dict', 'wb'))
+    pickle.dump(d, open(os.path.join(models_path, 'word2vec.dict'), 'wb'))
 
-    # d = pickle.load(open('word2vec.dict', 'rb'))
-    # print(sorted(list(d.items()), key=lambda a, b: b))
-    #
+    d = pickle.load(open(os.path.join(models_path, 'word2vec.dict'), 'rb'))
+    print(sorted(d.items(), key=operator.itemgetter(1)))
+
     # Use the dictionary to convert sentences to vectors for dataset

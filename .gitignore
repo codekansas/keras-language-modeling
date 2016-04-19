@@ -1,3 +1,7 @@
+# data / models (also potentially very large)
+data/
+models/
+
 # pyc files aren't necessary
 *.pyc
 

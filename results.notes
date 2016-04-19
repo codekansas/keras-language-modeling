@@ -1,0 +1,4 @@
+Single-layer bi-LSTM with max pooling, 40 words per sentence, loss margin of 0.2
+ - MRR ~0.17
+ - Seemed to converge after about 20 epochs, with randomization between epochs
+

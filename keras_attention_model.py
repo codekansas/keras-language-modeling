@@ -3,17 +3,21 @@ from __future__ import print_function
 ##############
 # Make model #
 ##############
+import os
+
 from keras.engine import Merge
 from keras.layers import Lambda, MaxPooling1D, Dense, Flatten, Dropout, Masking, Embedding, TimeDistributed
 from keras.optimizers import SGD
 
-from language_model.word_embeddings import Word2VecEmbedding
+from word_embeddings import Word2VecEmbedding
+
+models_path = 'models/'
 
 
 def make_model(maxlen, n_words, n_lstm_dims=141, n_embed_dims=128):
     from keras.optimizers import RMSprop
 
-    from language_model.attention_lstm import AttentionLSTM
+    from attention_lstm import AttentionLSTM
 
     from keras.layers import Input, LSTM, merge
     from keras.models import Model
@@ -25,8 +29,8 @@ def make_model(maxlen, n_words, n_lstm_dims=141, n_embed_dims=128):
     answer_bad = Input(shape=(maxlen,), dtype='int32')
 
     # language model
-    embedding = Embedding(n_words, n_embed_dims)
-    # embedding = Word2VecEmbedding('word2vec.model')
+    # embedding = Embedding(n_words, n_embed_dims)
+    embedding = Word2VecEmbedding(os.path.join(models_path, 'word2vec.model'))
 
     # forward and backward lstms
     f_lstm = LSTM(n_lstm_dims, return_sequences=True)
@@ -99,7 +103,7 @@ if __name__ == '__main__':
     # get the data set
     maxlen = 40 # words
 
-    from language_model.get_data import get_data_set, create_dictionary_from_qas
+    from utils.get_data import get_data_set, create_dictionary_from_qas
 
     dic = create_dictionary_from_qas()
     targets, questions, good_answers, bad_answers, n_dims = get_data_set(maxlen)
@@ -109,4 +113,4 @@ if __name__ == '__main__':
 
     print('Fitting model')
     train_model.fit([questions, good_answers, bad_answers], targets, nb_epoch=5, batch_size=32, validation_split=0.2)
-    train_model.save_weights('attention_lm_weights.h5', overwrite=True)
+    train_model.save_weights(os.path.join(models_path, 'attention_lm_weights.h5'), overwrite=True)
