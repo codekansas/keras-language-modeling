@@ -1,6 +1,6 @@
 # keras-language-modeling
 
-The original paper, which provided inspiriation for this project, can be found [here](http://arxiv.org/pdf/1511.04108.pdf).
+Some code for doing language modeling with Keras, in particular for question-answering tasks. The original paper, which provided inspiriation for this project, can be found [here](http://arxiv.org/pdf/1511.04108.pdf).
 
 ### Stuff that might be of interest
 
