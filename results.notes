@@ -3,3 +3,25 @@ Single-layer bi-LSTM with max pooling, 40 words per sentence, loss margin of 0.2
  - Seemed to converge after about 20 epochs, with randomization between epochs
  - Using the pure embedding layer worked better than using the Word2Vec model (gave MRR ~0.09)
 
+CNN + ALSTM model seems to have good loss
+ - MRR ~0.33 (I think)
+
+CNN + ALSTM
+ - Example error:
+   - Question: be home insurance negotiable
+   - Desired answer: I not sure exactly what you mean but if you mean go without then no a mortgage company will not allow that and if you own outright it will be a foolish choice go without if you mean price negotiation (ranked 177)
+   - Highest-rank answer: no homeowner be not mandatory in Pennsylvania however if you be apply for any type of homeowner loan most bank will require you purchase insurance process the loan the bank will also ask be list as the lien holder if
+
+ - Example error:
+   - Question: what be Suze Orman advice on long term care insurance
+   - Desired answer: Suze Orman recommend long-term care insurance if it fit and 1 can medically qualify for it she be currently take care of her 90 year old mother who refuse to letSuze buy long-term care insurance on her when she can (rank ~460)
+   - Highest-rank answer: a good age buy long-term care insurance when you be in a good financial position and have some extra disposable income also if your health be good you will save thousand dollar potentially in premium need specific number how about
+
+ - Example error:
+   - Question: can you get Life Insurance on someone else
+   - Desired answer: you can get life insurance on someone else if you have an insurable interest with them an example of insurable interest be this : if a nonrelative owe you money you can take out a life insurance policy on them (rank 498)
+   - Highest-rank answer: I assume when you ask Doe someone have a life insurance policy on me , you be ask about someone other than your parent as an adult no one can take a policy out on you without you give your
+
+ - In general, the model predicts the topics well, but doesn't necessarily match it well with the question. This might be due to the masking issue.
+ - MRR: 0.30957
+

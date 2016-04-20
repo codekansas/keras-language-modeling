@@ -210,7 +210,7 @@ class AttentionLSTM(Recurrent):
         # Attention gate #
         ##################
 
-        m = self.activation(K.dot(h, self.U_a) + attention)
+        m = K.tanh(K.dot(h, self.U_a) + attention)
         # Intuitively it makes more sense to use a sigmoid (was getting some NaN problems
         # which I think might have been caused by the exponential function -> gradients blow up)
         # s = K.exp(K.dot(m, self.U_s))

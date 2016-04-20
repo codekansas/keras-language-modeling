@@ -109,6 +109,9 @@ def get_data_set(maxlen, questions=None, answers=None, dic=None):
     for id, question in questions.items():
         qc = dic.convert(question['title'] + question['content'])[0]
 
+        if len(qc) < 5:
+            continue
+
         ggans = [dic.convert(a['answer'])[0] for a in answers[id] if int(a['score']) >= 3]
         bbans = [dic.convert(a['answer'])[0] for a in answers[id] if int(a['score']) < 3]
 
@@ -120,8 +123,8 @@ def get_data_set(maxlen, questions=None, answers=None, dic=None):
         targets += [0] * m
 
     targets = np.asarray(targets)
-    qs = pad_sequences(qs, maxlen=maxlen, padding='post', truncating='post', dtype='int32')
-    gans = pad_sequences(gans, maxlen=maxlen, padding='post', truncating='post', dtype='int32')
-    bans = pad_sequences(bans, maxlen=maxlen, padding='post', truncating='post', dtype='int32')
+    qs = pad_sequences(qs, maxlen=maxlen, padding='post', truncating='post', dtype='int32', value=0)
+    gans = pad_sequences(gans, maxlen=maxlen, padding='post', truncating='post', dtype='int32', value=0)
+    bans = pad_sequences(bans, maxlen=maxlen, padding='post', truncating='post', dtype='int32', value=0)
 
     return targets, qs, gans, bans, len(dic)

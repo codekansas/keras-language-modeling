@@ -32,7 +32,7 @@ def to_idx(x):
 
 
 def convert_from_idxs(x):
-    return np.asarray([emb_d.get(idx_d[i], 22295) for i in x.strip().split(' ')])
+    return np.asarray([emb_d.get(idx_d[i], 0) for i in x.strip().split(' ')])
 
 
 def revert(x):
@@ -67,8 +67,8 @@ def get_eval(f_name):
         all_answers = [int(i) for i in g.strip().split(' ')]
 
         question = convert_from_idxs(q)
-        q_data.append(pad_sequences([question], maxlen=maxlen, padding='post', truncating='post', value=22295))
-        a_data.append(pad_sequences([answers[i] for i in all_answers], maxlen=maxlen, padding='post', truncating='post', value=22295))
+        q_data.append(pad_sequences([question], maxlen=maxlen, padding='post', truncating='post', value=0))
+        a_data.append(pad_sequences([answers[i] for i in all_answers], maxlen=maxlen, padding='post', truncating='post', value=0))
         n_good.append(len(good_answers))
 
     return q_data, a_data, n_good
@@ -106,9 +106,9 @@ def get_data(f_name):
     random.shuffle(combined)
     q_data[:], ag_data[:], ab_data, targets[:] = zip(*combined)
 
-    q_data = pad_sequences(q_data, maxlen=maxlen, padding='post', truncating='post', value=22295)
-    ag_data = pad_sequences(ag_data, maxlen=maxlen, padding='post', truncating='post', value=22295)
-    ab_data = pad_sequences(ab_data, maxlen=maxlen, padding='post', truncating='post', value=22295)
+    q_data = pad_sequences(q_data, maxlen=maxlen, padding='post', truncating='post', value=0)
+    ag_data = pad_sequences(ag_data, maxlen=maxlen, padding='post', truncating='post', value=0)
+    ab_data = pad_sequences(ab_data, maxlen=maxlen, padding='post', truncating='post', value=0)
     targets = np.asarray(targets)
 
     return q_data, ag_data, ab_data, targets
@@ -147,10 +147,16 @@ def get_mrr(model, questions, all_answers, n_good, n_eval=-1):
         sims = model.predict([qs, ans]).flatten()
         r = rankdata(sims)
 
-        x = 1 / float(max(r) - max(r[:n_good[i]]) + 1)
-        print(max(r) - max(r[:n_good[i]] + 1))
+        max_r = np.argmax(r)
+        max_n = np.argmax(r[:n_good[i]])
 
+        x = 1 / float(r[max_r] - r[max_n] + 1)
         c += x
+
+        print('---------- (%d)\nQuestion:' % i, revert(question[0]))
+        print('Desired answer:', revert(ans[max_n]))
+        print('Highest-rank answer:', revert(ans[max_r]))
+        print('Rank of best answer:', r[max_n])
 
     return c / len(questions)
 
@@ -184,9 +190,9 @@ train_model.save_weights(os.path.join(models_path, 'iqa_model_for_training.h5'),
 test_model.save_weights(os.path.join(models_path, 'iqa_model_for_prediction.h5'), overwrite=True)
 
 # the model actually did really well, predicted correct vs. incorrect answer 85% of the time on the validation set
-# test_model.load_weights(os.path.join(models_path, 'iqa_model_for_prediction.h5'))
-# print('Percent correct: {}'.format(get_accurate_percentage(test_model, q_data, ag_data, ab_data, n_eval='all')))
+test_model.load_weights(os.path.join(models_path, 'iqa_model_for_prediction.h5'))
+print('Percent correct: {}'.format(get_accurate_percentage(test_model, q_data, ag_data, ab_data, n_eval='all')))
 
 q_data, a_data, n_good = get_eval(data_sets[1])
-# test_model.load_weights(os.path.join(models_path, 'iqa_model_for_prediction.h5'))
+test_model.load_weights(os.path.join(models_path, 'iqa_model_for_prediction.h5'))
 print('MRR: {}'.format(get_mrr(test_model, q_data, a_data, n_good)))

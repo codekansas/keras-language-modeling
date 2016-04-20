@@ -11,9 +11,10 @@ from gensim.utils import tokenize
 
 
 class Dictionary:
-    def __init__(self):
+    def __init__(self, min_len=1):
         self._token_counts = dict()
-        self._id = 0
+        self._id = 1
+        self._min_len = min_len
 
         self.token2id = dict()
         self.id2token = list()
@@ -45,7 +46,7 @@ class Dictionary:
         return self.id2token[item] if 0 <= item < len(self.token2id) else 'UNKNOWN'
 
     def __len__(self):
-        return self._id + 2
+        return self._id + 1
 
     def convert(self, text):
         if isinstance(text, str):
