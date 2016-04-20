@@ -25,3 +25,5 @@ CNN + ALSTM
  - In general, the model predicts the topics well, but doesn't necessarily match it well with the question. This might be due to the masking issue.
  - MRR: 0.30957
 
+2 ALSTM + MaxPooling
+ - MRR: 0.0147 (didn't converge)
