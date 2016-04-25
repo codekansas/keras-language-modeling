@@ -67,8 +67,8 @@ def get_eval(f_name):
         all_answers = [int(i) for i in g.strip().split(' ')]
 
         question = convert_from_idxs(q)
-        q_data.append(pad_sequences([question], maxlen=maxlen, padding='post', truncating='post', value=0))
-        a_data.append(pad_sequences([answers[i] for i in all_answers], maxlen=maxlen, padding='post', truncating='post', value=0))
+        q_data.append(pad_sequences([question], maxlen=maxlen_question, padding='post', truncating='post', value=0))
+        a_data.append(pad_sequences([answers[i] for i in all_answers], maxlen=maxlen_answer, padding='post', truncating='post', value=0))
         n_good.append(len(good_answers))
 
     return q_data, a_data, n_good
@@ -106,9 +106,9 @@ def get_data(f_name):
     random.shuffle(combined)
     q_data[:], ag_data[:], ab_data, targets[:] = zip(*combined)
 
-    q_data = pad_sequences(q_data, maxlen=maxlen, padding='post', truncating='post', value=0)
-    ag_data = pad_sequences(ag_data, maxlen=maxlen, padding='post', truncating='post', value=0)
-    ab_data = pad_sequences(ab_data, maxlen=maxlen, padding='post', truncating='post', value=0)
+    q_data = pad_sequences(q_data, maxlen=maxlen_question, padding='post', truncating='post', value=0)
+    ag_data = pad_sequences(ag_data, maxlen=maxlen_answer, padding='post', truncating='post', value=0)
+    ab_data = pad_sequences(ab_data, maxlen=maxlen_answer, padding='post', truncating='post', value=0)
     targets = np.asarray(targets)
 
     return q_data, ag_data, ab_data, targets
@@ -162,13 +162,14 @@ def get_mrr(model, questions, all_answers, n_good, n_eval=-1):
 
 # model parameters
 n_words = 22354
-maxlen = 40
+maxlen_question = 10
+maxlen_answer = 50
 
 # the model being used
 print('Generating model')
 
 from keras_attention_model import make_model
-train_model, test_model = make_model(maxlen, n_words, n_embed_dims=128, n_lstm_dims=256)
+train_model, test_model = make_model(maxlen_question, maxlen_answer, n_words, n_embed_dims=128, n_lstm_dims=256)
 
 print('Getting data')
 data_sets = [
@@ -179,15 +180,33 @@ data_sets = [
 q_data, ag_data, ab_data, targets = get_data(data_sets[0])
 qv_data, avg_data, avb_data, v_targets = get_data(data_sets[1])
 
+test_model.load_weights(os.path.join(models_path, 'iqa_model_for_prediction.h5'))
+
 # found through experimentation that ~24 epochs generalized the best
 print('Fitting model')
-for i in range(100):
-    print(i)
+for i in range(30):
+    print('----- %d -----' % i)
     np.random.shuffle(ab_data)
     train_model.fit([q_data, ag_data, ab_data], targets, nb_epoch=1, batch_size=128, validation_data=[[qv_data, avg_data, avb_data], v_targets], shuffle=True)
 
+    if i % 100 == 0:
+        train_model.save_weights(os.path.join(models_path, 'iqa_model_for_training_iter_%d.h5' % i), overwrite=True)
+        test_model.save_weights(os.path.join(models_path, 'iqa_model_for_training_iter_%d.h5' % i), overwrite=True)
+
 train_model.save_weights(os.path.join(models_path, 'iqa_model_for_training.h5'), overwrite=True)
 test_model.save_weights(os.path.join(models_path, 'iqa_model_for_prediction.h5'), overwrite=True)
+
+test_model.load_weights(os.path.join(models_path, 'iqa_model_for_prediction.h5'))
+
+import keras.backend as K
+get_attention = K.function([test_model.layers[0].input, test_model.layers[1].input], [test_model.layers[3].get_output_at(0)])
+attention = get_attention([q_data[:20], ag_data[:20]])[0]
+
+for i in range(20):
+    print('----- %d -----' % i)
+    print(revert(q_data[i]))
+    print(revert(ag_data[i]))
+    print([np.linalg.norm(x) for x in attention[i]])
 
 # the model actually did really well, predicted correct vs. incorrect answer 85% of the time on the validation set
 test_model.load_weights(os.path.join(models_path, 'iqa_model_for_prediction.h5'))

@@ -52,6 +52,8 @@ class AttentionLSTM(Recurrent):
         self.b_regularizer = regularizers.get(b_regularizer)
         self.dropout_W, self.dropout_U = dropout_W, dropout_U
 
+        self.attention_units = list()
+
         if self.dropout_W or self.dropout_U:
             self.uses_learning_phase = True
         super(AttentionLSTM, self).__init__(**kwargs)
@@ -181,7 +183,6 @@ class AttentionLSTM(Recurrent):
             return x
 
     def step(self, x, states):
-
         h_tm1 = states[0]
         c_tm1 = states[1]
         B_U = states[2]
