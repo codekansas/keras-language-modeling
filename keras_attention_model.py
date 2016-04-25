@@ -82,7 +82,7 @@ def make_model(maxlen_question, maxlen_answer, n_words, n_lstm_dims=141, n_embed
 
     # merge together
     # note: `cos` refers to "cosine similarity", i.e. similar vectors should go to 1
-    # for training's sake, "abs" limits range to be tween 0 and 1 (binary classification)
+    # for training's sake, "abs" limits range to between 0 and 1 (binary classification)
     good_out = merge([q_out, ag_out], name='good', mode='cos', dot_axes=1)
     bad_out = merge([q_out, ab_out], name='bad', mode='cos', dot_axes=1)
 

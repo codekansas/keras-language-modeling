@@ -184,7 +184,7 @@ test_model.load_weights(os.path.join(models_path, 'iqa_model_for_prediction.h5')
 
 # found through experimentation that ~24 epochs generalized the best
 print('Fitting model')
-for i in range(30):
+for i in range(10000):
     print('----- %d -----' % i)
     np.random.shuffle(ab_data)
     train_model.fit([q_data, ag_data, ab_data], targets, nb_epoch=1, batch_size=128, validation_data=[[qv_data, avg_data, avb_data], v_targets], shuffle=True)
