@@ -5,15 +5,11 @@ try:
 except ImportError:
     import pickle
 
-from numpy import asarray
-import numpy as np
-from gensim.utils import tokenize
-
 
 class Dictionary:
     def __init__(self, min_len=1):
         self._token_counts = dict()
-        self._id = 1
+        self._id = 0
         self._min_len = min_len
 
         self.token2id = dict()
@@ -43,18 +39,21 @@ class Dictionary:
         return self.token2id.get(item, self._id)
 
     def __getitem__(self, item):
-        return self.id2token[item] if 0 <= item < len(self.token2id) else 'UNKNOWN'
+        return self.id2token[item] if item < self._id else 'X'
 
     def __len__(self):
         return self._id + 1
 
     def convert(self, text):
-        if isinstance(text, str):
-            docs = [tokenize(text, to_lower=True)]
-        else:
-            docs = [tokenize(t, to_lower=True) for t in text]
+        from gensim.utils import tokenize
+        from numpy import asarray
 
-        return [asarray([self(t) for t in doc], dtype=np.int32) for doc in docs]
+        if isinstance(text, str):
+            docs = [tokenize(text, to_lower=True, deacc=True)]
+        else:
+            docs = [tokenize(t, to_lower=True, deacc=True) for t in text]
+
+        return [asarray([self(t) for t in doc], dtype='int32') for doc in docs]
 
     def revert(self, tokens):
         texts = list()
@@ -63,6 +62,15 @@ class Dictionary:
             texts.append(' '.join([self[t] for t in token]))
 
         return texts
+
+    def top(self, n):
+        import operator
+
+        sorted_tokens = sorted(self._token_counts.items(), reverse=True, key=operator.itemgetter(1))[:n]
+        self._token_counts = dict((k, v) for k, v in sorted_tokens)
+        self.id2token = [k for k in self._token_counts.keys()]
+        self.token2id = dict((v, k) for k, v in enumerate(self.id2token))
+        self._id = len(self.id2token)
 
     def strip(self, n):
         self._token_counts = dict((k, v) for k, v in self._token_counts.items() if v > n)

@@ -1,6 +1,7 @@
 # data / models (also potentially very large)
 data/
 models/
+treq_eval*
 
 # pyc files aren't necessary
 *.pyc

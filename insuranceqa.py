@@ -116,7 +116,7 @@ def get_data(f_name):
 
 def get_accurate_percentage(model, questions, good_answers, bad_answers, n_eval=512):
 
-    if n_eval != 'all':
+    if n_eval != -1:
         questions = questions[-n_eval:]
         good_answers = good_answers[-n_eval:]
         bad_answers = bad_answers[-n_eval:]
@@ -180,11 +180,11 @@ data_sets = [
 q_data, ag_data, ab_data, targets = get_data(data_sets[0])
 qv_data, avg_data, avb_data, v_targets = get_data(data_sets[1])
 
-test_model.load_weights(os.path.join(models_path, 'iqa_model_for_prediction.h5'))
+test_model.load_weights(os.path.join(models_path, 'iqa_model_for_training_iter_900.h5'))
 
 # found through experimentation that ~24 epochs generalized the best
 print('Fitting model')
-for i in range(10000):
+for i in range(401, 10000):
     print('----- %d -----' % i)
     np.random.shuffle(ab_data)
     train_model.fit([q_data, ag_data, ab_data], targets, nb_epoch=1, batch_size=128, validation_data=[[qv_data, avg_data, avb_data], v_targets], shuffle=True)
@@ -192,25 +192,18 @@ for i in range(10000):
     if i % 100 == 0:
         train_model.save_weights(os.path.join(models_path, 'iqa_model_for_training_iter_%d.h5' % i), overwrite=True)
         test_model.save_weights(os.path.join(models_path, 'iqa_model_for_training_iter_%d.h5' % i), overwrite=True)
+        print('Percent correct: {}'.format(get_accurate_percentage(test_model, q_data, ag_data, ab_data, n_eval=-1)))
+        eq_data, ea_data, en_good = get_eval(data_sets[1])
+        print('MRR: {}'.format(get_mrr(test_model, eq_data, ea_data, en_good)))
 
 train_model.save_weights(os.path.join(models_path, 'iqa_model_for_training.h5'), overwrite=True)
 test_model.save_weights(os.path.join(models_path, 'iqa_model_for_prediction.h5'), overwrite=True)
 
 test_model.load_weights(os.path.join(models_path, 'iqa_model_for_prediction.h5'))
 
-import keras.backend as K
-get_attention = K.function([test_model.layers[0].input, test_model.layers[1].input], [test_model.layers[3].get_output_at(0)])
-attention = get_attention([q_data[:20], ag_data[:20]])[0]
-
-for i in range(20):
-    print('----- %d -----' % i)
-    print(revert(q_data[i]))
-    print(revert(ag_data[i]))
-    print([np.linalg.norm(x) for x in attention[i]])
-
 # the model actually did really well, predicted correct vs. incorrect answer 85% of the time on the validation set
 test_model.load_weights(os.path.join(models_path, 'iqa_model_for_prediction.h5'))
-print('Percent correct: {}'.format(get_accurate_percentage(test_model, q_data, ag_data, ab_data, n_eval='all')))
+print('Percent correct: {}'.format(get_accurate_percentage(test_model, q_data, ag_data, ab_data, n_eval=-1)))
 
 q_data, a_data, n_good = get_eval(data_sets[1])
 test_model.load_weights(os.path.join(models_path, 'iqa_model_for_prediction.h5'))
