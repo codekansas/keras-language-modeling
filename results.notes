@@ -35,3 +35,18 @@ CNN + ALSTM
 
 2 ALSTM + MaxPooling
  - MRR: 0.0147 (didn't converge)
+
+Pure CNN Model:
+ - 4000 filters
+ - Maxpooling
+ - After 120 epochs, InsuranceQA MRR = 0.530 and Top-1 Precision = 0.401
+   - Decreased slightly with further training due to overfitting
+ - Mixing together different filter lengths improved it to MRR = 0.56 and Top-1 Precision = 0.44
+
+ - Example error:
+   - Question: how much do Disability Income insurance cost
+   - Desired answer: disability income insurance can cost between $50 and $5,000 per month yes that be a ridiculously big range but there be so many variable that determine the rate , I shall cover all base a full-time broker / agent can quickly ask you a few question and determine the good plan for the most affordable price
+   - Highest-rank answer: along with what Peggy and Steve mention make sure whoever you choose as your agent present you with multiple quote for disability insurance too often consumer think the cheap policy be good but it have likely that the cheap policy offer poor coverage your agent assume he or she do not represent just 1 company shall be able provide you different quote that reflect different type of coverage ( e.g. different benefit period , elimination period , different company , etc.
+   - Rank of best answer: 347.0
+
+

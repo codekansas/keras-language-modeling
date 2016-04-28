@@ -69,7 +69,7 @@ def gen_eval(dic, pairs, q_maxlen, a_maxlen):
         neg = dic.convert(pair['negative'])
         q = dic.convert(pair['question'])
 
-        q_data.append(pad_sequences([q], maxlen=q_maxlen, padding='post', truncating='post', value=len(dic)))
+        q_data.append(pad_sequences(q, maxlen=q_maxlen, padding='post', truncating='post', value=len(dic)))
         a_data.append(pad_sequences(pos + neg, maxlen=a_maxlen, padding='post', truncating='post', value=len(dic)))
         n_good.append(len(pos))
 
@@ -124,12 +124,16 @@ def get_mrr(model, questions, all_answers, n_good, n_eval=-1):
     c = 0
 
     for i in range(len(questions)):
+        if n_good[i] == 0:
+            continue
+
         question = questions[i]
         ans = all_answers[i]
 
         qs = np.repeat(question, len(ans), 0)
 
         sims = model.predict([qs, ans]).flatten()
+
         r = rankdata(sims)
 
         max_r = np.argmax(r)
@@ -161,17 +165,17 @@ targets = asarray([0] * len(questions))
 targets_dev = asarray([0] * len(questions_dev))
 
 print('Generating model')
-train_model, test_model = make_model(q_maxlen, a_maxlen, n_words, n_embed_dims=400, n_lstm_dims=64)
+train_model, test_model = make_model(q_maxlen, a_maxlen, n_words, n_embed_dims=400, n_lstm_dims=32)
 
 for i in range(1000):
+    if (i+1) % 20 == 0:
+        print('MRR: {}'.format(get_mrr(test_model, questions_test, answers_test, n_good_test)))
+        train_model.save_weights(os.path.join('models', 'trecqa_model_for_training_iter_%d.h5' % (i + 1)), overwrite=True)
+        test_model.save_weights(os.path.join('models', 'trecqa_model_for_testing_iter_%d.h5' % (i + 1)), overwrite=True)
+
     print('----- %d -----' % i)
     import numpy.random as nprandom
     nprandom.shuffle(neg_answers)
     neg_answers_train = neg_answers[:len(pos_answers)]
 
     train_model.fit([questions, pos_answers, neg_answers_train], targets, nb_epoch=1, batch_size=128, validation_data=[[questions_dev, pos_answers_dev, neg_answers_dev], targets_dev])
-
-    if i % 20 == 0:
-        train_model.save_weights(os.path.join('models', 'trecqa_model_for_training_iter_%d.h5' % (i+1)), overwrite=True)
-        test_model.save_weights(os.path.join('models', 'trecqa_model_for_testing_iter_%d.h5' % (i+1)), overwrite=True)
-        print('MRR: {}'.format(get_mrr(test_model, questions_test, answers_test, n_good_test)))

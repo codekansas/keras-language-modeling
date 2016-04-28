@@ -107,10 +107,15 @@ class AttentionLSTM(Recurrent):
 
         self.U_a = self.inner_init((self.output_dim, self.output_dim),
                                    name='{}_U_a'.format(self.name))
+        self.b_a = K.zeros((self.output_dim,), name='{}_b_a'.format(self.name))
+
         self.U_m = self.inner_init((attention_dim, self.output_dim),
                                    name='{}_U_m'.format(self.name))
-        self.U_s = self.inner_init((self.output_dim, 1),
+        self.b_m = K.zeros((self.output_dim,), name='{}_b_m'.format(self.name))
+
+        self.U_s = self.inner_init((self.output_dim, self.output_dim),
                                    name='{}_U_s'.format(self.name))
+        self.b_s = K.zeros((self.output_dim,), name='{}_b_s'.format(self.name))
 
         self.regularizers = []
         if self.W_regularizer:
@@ -129,7 +134,10 @@ class AttentionLSTM(Recurrent):
                                                         self.U_o]))
             self.regularizers.append(self.U_regularizer)
         if self.b_regularizer:
-            self.b_regularizer.set_param(K.concatenate([self.b_i,
+            self.b_regularizer.set_param(K.concatenate([self.b_a,
+                                                        self.b_m,
+                                                        self.b_s,
+                                                        self.b_i,
                                                         self.b_f,
                                                         self.b_c,
                                                         self.b_o]))
@@ -139,7 +147,8 @@ class AttentionLSTM(Recurrent):
                                   self.W_c, self.U_c, self.b_c,
                                   self.W_f, self.U_f, self.b_f,
                                   self.W_o, self.U_o, self.b_o,
-                                  self.U_a, self.U_m, self.U_s]
+                                  self.U_a, self.U_m, self.U_s,
+                                  self.b_a, self.b_m, self.b_s]
 
         if self.initial_weights is not None:
             self.set_weights(self.initial_weights)
@@ -211,12 +220,12 @@ class AttentionLSTM(Recurrent):
         # Attention gate #
         ##################
 
-        m = K.tanh(K.dot(h, self.U_a) + attention)
+        m = K.tanh(K.dot(h, self.U_a) + attention + self.b_a)
         # Intuitively it makes more sense to use a sigmoid (was getting some NaN problems
         # which I think might have been caused by the exponential function -> gradients blow up)
-        # s = K.exp(K.dot(m, self.U_s))
-        s = K.sigmoid(K.dot(m, self.U_s))
-        h = h * K.repeat_elements(s, self.output_dim, axis=1)
+        # s = K.exp(K.dot(m, self.U_s) + self.b_s)
+        s = K.sigmoid(K.dot(m, self.U_s) + self.b_s)
+        h = h * s
 
         return h, [h, c]
 
@@ -244,7 +253,7 @@ class AttentionLSTM(Recurrent):
         # Attention vector #
         ####################
 
-        constants.append(K.dot(self.attention_vec, self.U_m))
+        constants.append(K.dot(self.attention_vec, self.U_m) + self.b_m)
 
         return constants
 
