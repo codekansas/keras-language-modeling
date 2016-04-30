@@ -1,16 +1,15 @@
-import os
-
-import operator
 from gensim.models import Word2Vec
 from keras.engine import Layer
-import pickle
 
 import keras.backend as K
 
-models_path = 'models/'
-
 
 class Word2VecEmbedding(Layer):
+    ''' This layer can be used instead of Keras's Embedding layer,
+    if word2vec encodings are desired. The performance is generally about
+    the same, although this isn't as nice of a way to do it. It uses gensim
+    to train the model, and takes the path to that model in the constructor.
+    '''
     def __init__(self, model_path, **kwargs):
         self.model = Word2Vec.load(model_path)
         self.W = K.variable(self.model.syn0)
@@ -27,72 +26,3 @@ class Word2VecEmbedding(Layer):
     def call(self, x, mask=None):
         x = K.maximum(K.minimum(x, self.model_dims[1] - 1), 0)
         return K.gather(self.W, x)
-
-
-def train_model():
-    # train the word2vec model
-    data_path = '/media/moloch/HHD/MachineLearning/data/insuranceQA'
-
-    # read vocabulary and generate dictionary
-    with open(os.path.join(data_path, 'vocabulary'), 'r') as f:
-        lines = f.read()
-
-    # generate dictionaries
-    word2idx = dict()
-    idx2word = dict()
-
-    def to_idx(x):
-        return int(x[4:])
-
-    for vocab in lines.split('\n'):
-        if len(vocab) == 0: continue
-        s = vocab.split('\t')
-        word2idx[s[1]] = to_idx(s[0])
-        idx2word[to_idx(s[0])] = s[1]
-
-    def convert(text):
-        return [word2idx.get(i, len(word2idx)) for i in text.split(' ')]
-
-    def revert(ids):
-        return ' '.join([idx2word.get(i, 'UNKNOWN') for i in ids])
-
-    # read answers
-    with open(os.path.join(data_path, 'answers.label.token_idx'), 'r') as f:
-        lines = f.read()
-
-    answers = list()
-    for answer in lines.split('\n'):
-        if len(answer) == 0: continue
-        id, txt = answer.split('\t')
-        answers.append([idx2word[to_idx(i)] for i in txt.split(' ')])
-
-    # read questions
-    with open(os.path.join(data_path, 'question.train.token_idx.label'), 'r') as f:
-        lines = f.read()
-
-    questions = list()
-    for question in lines.split('\n'):
-        if len(question) == 0: continue
-        q, a = question.split('\t')
-        questions.append([idx2word[to_idx(i)] for i in q.split(' ')])
-
-    sentences = questions + answers
-
-    model = Word2Vec(sentences, size=100, min_count=1)
-    model.save(os.path.join(models_path, 'word2vec.model'))
-
-if __name__ == '__main__':
-    print('Training word2vec model..')
-
-    train_model()
-    model = Word2Vec.load(os.path.join(models_path, 'word2vec.model'))
-
-    print('Done! Saving...')
-
-    d = dict([(k, v.index) for k, v in model.vocab.items()])
-    pickle.dump(d, open(os.path.join(models_path, 'word2vec.dict'), 'wb'))
-
-    d = pickle.load(open(os.path.join(models_path, 'word2vec.dict'), 'rb'))
-    print(sorted(d.items(), key=operator.itemgetter(1)))
-
-    # Use the dictionary to convert sentences to vectors for dataset

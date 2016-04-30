@@ -13,8 +13,6 @@ models_path = 'models/'
 
 
 def make_model(maxlen_question, maxlen_answer, n_words, n_embed_dims=128):
-    from keras.optimizers import RMSprop
-
     from keras.layers import Input, merge
     from keras.models import Model
     import keras.backend as K
@@ -83,7 +81,7 @@ def make_model(maxlen_question, maxlen_answer, n_words, n_embed_dims=128):
     print('Compiling model...')
 
     # optimizer = RMSprop(lr=0.01, clipnorm=0.05)
-    optimizer = 'adamax'
+    optimizer = 'adam'
 
     def loss(y_true, y_pred):
         return y_pred
@@ -95,18 +93,3 @@ def make_model(maxlen_question, maxlen_answer, n_words, n_embed_dims=128):
     test_model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
 
     return train_model, test_model
-
-if __name__ == '__main__':
-    # get the data set
-    maxlen = 40 # words
-
-    from utils.get_data import get_data_set, create_dictionary_from_qas
-
-    dic = create_dictionary_from_qas()
-    targets, questions, good_answers, bad_answers, n_dims = get_data_set(maxlen)
-
-    train_model, test_model = make_model(maxlen, n_dims)
-
-    print('Fitting model')
-    train_model.fit([questions, good_answers, bad_answers], targets, nb_epoch=5, batch_size=128)
-    train_model.save_weights(os.path.join(models_path, 'attention_lm_weights.h5'), overwrite=True)

@@ -1,5 +1,4 @@
 from __future__ import absolute_import
-import numpy as np
 
 from keras import backend as K
 from keras.layers import LSTM
@@ -41,11 +40,11 @@ class AttentionLSTM(LSTM):
         h, [h, c] = super(AttentionLSTM, self).step(x, states)
         attention = states[4]
 
-        m = K.tanh(K.dot(h, self.U_a) + attention + self.b_a)
+        m = K.tanh(K.dot(h, self.U_a) * attention + self.b_a)
         # Intuitively it makes more sense to use a sigmoid (was getting some NaN problems
         # which I think might have been caused by the exponential function -> gradients blow up)
-        # s = K.exp(K.dot(m, self.U_s) + self.b_s)
-        s = K.sigmoid(K.dot(m, self.U_s) + self.b_s)
+        s = K.exp(K.dot(m, self.U_s) + self.b_s)
+        # s = K.sigmoid(K.dot(m, self.U_s) + self.b_s)
         h = h * s
 
         return h, [h, c]
