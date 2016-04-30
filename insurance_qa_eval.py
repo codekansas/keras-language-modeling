@@ -155,8 +155,8 @@ class Evaluator:
 
 if __name__ == '__main__':
     conf = {
-        'question_len': 100,
-        'answer_len': 100,
+        'question_len': 10,
+        'answer_len': 40,
         'n_words': 22353, # len(vocabulary) + 1
         'margin': 0.009,
 
@@ -184,13 +184,14 @@ if __name__ == '__main__':
             'mode': 'cosine',
             'gamma': 1,
             'c': 1,
+            'd': 2,
         }
     }
 
     evaluator = Evaluator(data_path, conf)
 
     ##### Define model ######
-    model = EmbeddingModel(conf)
+    model = RecurrentModel(conf)
     model.compile(optimizer='adam')
 
     evaluator.train(model)

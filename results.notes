@@ -49,4 +49,9 @@ Pure CNN Model:
    - Highest-rank answer: along with what Peggy and Steve mention make sure whoever you choose as your agent present you with multiple quote for disability insurance too often consumer think the cheap policy be good but it have likely that the cheap policy offer poor coverage your agent assume he or she do not represent just 1 company shall be able provide you different quote that reflect different type of coverage ( e.g. different benefit period , elimination period , different company , etc.
    - Rank of best answer: 347.0
 
+Embedding + MaxPooling:
+ - I can't believe this model performed so well. It blew the other ones out of the water, and trains ridiculously quickly.
+ - Test 1: Top-1 Precision = 0.4933, MRR = 0.6189
+ - Test 2: Top-1 Precision = 0.4606, MRR = 0.5968
+ - Dev: Top-1 Precision = 0.4700, MRR = 0.6088
 

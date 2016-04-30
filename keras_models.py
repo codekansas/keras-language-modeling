@@ -150,6 +150,8 @@ class LanguageModel:
 
 
 class EmbeddingModel(LanguageModel):
+    ''' This model actually performs stupidly well '''
+
     def build(self):
         input, _ = self._get_inputs()
 
@@ -232,12 +234,12 @@ class RecurrentModel(LanguageModel):
         input_dropout = dropout(input_embedding)
 
         # rnn
-        # forward_lstm = LSTM(self.config.get('n_lstm_dims', 141), consume_less='mem', return_sequences=False)
-        # backward_lstm = LSTM(self.config.get('n_lstm_dims', 141), consume_less='mem', return_sequences=False)
-        # input_lstm = merge([forward_lstm(input_dropout), backward_lstm(input_dropout)], mode='concat', concat_axis=-1)
+        forward_lstm = LSTM(self.config.get('n_lstm_dims', 141), consume_less='mem', return_sequences=True)
+        backward_lstm = LSTM(self.config.get('n_lstm_dims', 141), consume_less='mem', return_sequences=True)
+        input_lstm = merge([forward_lstm(input_dropout), backward_lstm(input_dropout)], mode='concat', concat_axis=-1)
 
         # dropout
-        # input_dropout = dropout(input_lstm)
+        input_dropout = dropout(input_lstm)
 
         # maxpooling
         maxpool = Lambda(lambda x: K.mean(K.exp(x), axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
