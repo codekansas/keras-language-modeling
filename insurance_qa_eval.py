@@ -90,8 +90,9 @@ class Evaluator:
 
         for i in range(nb_epoch):
             # bad_answers = np.roll(good_answers, random.randint(10, len(questions) - 10))
-            bad_answers = good_answers.copy()
-            random.shuffle(bad_answers)
+            # bad_answers = good_answers.copy()
+            # random.shuffle(bad_answers)
+            bad_answers = self.pada(random.sample(self.answers.values(), len(good_answers)))
 
             print('Epoch %d :: ' % i, end='')
             self.print_time()
@@ -110,7 +111,7 @@ class Evaluator:
             self._eval_sets = dict([(s, self.load(s)) for s in ['dev', 'test1', 'test2']])
         return self._eval_sets
 
-    def get_mrr(self, model, n_eval=20):
+    def get_mrr(self, model):
         top1s = list()
         mrrs = list()
 
@@ -119,7 +120,9 @@ class Evaluator:
             print('----- %s -----' % name)
 
             random.shuffle(data)
-            data = data[:n_eval]
+
+            if 'n_eval' in self.params:
+                data = data[:self.params['n_eval']]
 
             c_1, c_2 = 0, 0
 
@@ -152,20 +155,22 @@ class Evaluator:
 
 if __name__ == '__main__':
     conf = {
-        'question_len': 10,
-        'answer_len': 40,
+        'question_len': 100,
+        'answer_len': 100,
         'n_words': 22353, # len(vocabulary) + 1
-        'margin': 0.2,
+        'margin': 0.009,
 
         'training_params': {
             'eval_every': 10,
             'save_every': None,
             'batch_size': 128,
             'nb_epoch': 100,
+            # 'n_eval': 20,
         },
 
         'model_params': {
             'n_embed_dims': 1000,
+            'n_hidden': 200,
 
             # convolution
             'nb_filters': 1000,
@@ -185,7 +190,7 @@ if __name__ == '__main__':
     evaluator = Evaluator(data_path, conf)
 
     ##### Define model ######
-    model = ConvolutionModel(conf)
+    model = EmbeddingModel(conf)
     model.compile(optimizer='adam')
 
     evaluator.train(model)
