@@ -15,23 +15,28 @@ from attention_lstm import AttentionLSTM
 
 class LanguageModel:
     def __init__(self, config):
-        self.question = Input(shape=(config['question_len'],), dtype='int32')
-        self.answer_good = Input(shape=(config['answer_len'],), dtype='int32')
-        self.answer_bad = Input(shape=(config['answer_len'],), dtype='int32')
+        self.question = Input(shape=(config['question_len'],), dtype='int32', name='question')
+        self.answer_good = Input(shape=(config['answer_len'],), dtype='int32', name='answer_good')
+        self.answer_bad = Input(shape=(config['answer_len'],), dtype='int32', name='answer_bad')
 
         self.config = config
         self.model_params = config.get('model_params', dict())
         self.similarity_params = config.get('similarity_params', dict())
 
+        # initialize a bunch of variables that will be set later
         self._models = None
         self._similarities = None
+        self._inputs = None
+        self._qa_model = None
 
         self.training_model = None
         self.prediction_model = None
 
     def _get_inputs(self):
-        return [Input(shape=(self.config['question_len'],), dtype='int32', name='question'),
-                Input(shape=(self.config['answer_len'],), dtype='int32', name='answer')]
+        if self._inputs is None:
+            self._inputs = [Input(shape=(self.config['question_len'],), dtype='int32', name='question'),
+                            Input(shape=(self.config['answer_len'],), dtype='int32', name='answer')]
+        return self._inputs
 
     @abstractmethod
     def build(self):
@@ -92,45 +97,35 @@ class LanguageModel:
         else:
             raise Exception('Invalid similarity: {}'.format(similarity))
 
-    def get_similarities(self):
+    def get_qa_model(self):
         if self._models is None:
             self._models = self.build()
-            assert len(self._models) == 2, 'build() should make question and answer language models'
 
-        if self._similarities is None:
-            question_model, answer_model = self._models
-
-            answers_use_question = len(answer_model.internal_input_shapes) == 2
-
-            question = question_model(self.question, self.answer_good)
-
-            if answers_use_question:
-                good = answer_model([self.question, self.answer_good])
-                bad = answer_model([self.question, self.answer_bad])
-            else:
-                good = answer_model([self.answer_good])
-                bad = answer_model([self.answer_bad])
+        if self._qa_model is None:
+            question_output, answer_output = self._models
 
             similarity = self.get_similarity()
-            good_sim = merge([question, good], mode=similarity, output_shape=lambda x: x[:-1])
-            bad_sim = merge([question, bad], mode=similarity, output_shape=lambda x: x[:-1])
+            qa_model = merge([question_output, answer_output], mode=similarity, output_shape=lambda x: x[:-1])
 
-            self._similarities = [good_sim, bad_sim]
+            self._qa_model = Model(input=self._get_inputs(), output=[qa_model])
 
-        return self._similarities
+        return self._qa_model
 
     def compile(self, optimizer, **kwargs):
-        similarities = self.get_similarities()
+        qa_model = self.get_qa_model()
 
-        loss = merge(similarities,
+        good_output = qa_model([self.question, self.answer_good])
+        bad_output = qa_model([self.question, self.answer_bad])
+
+        loss = merge([good_output, bad_output],
                      mode=lambda x: K.maximum(1e-6, self.config['margin'] - x[0] + x[1]),
                      output_shape=lambda x: x[0])
 
         self.training_model = Model(input=[self.question, self.answer_good, self.answer_bad], output=loss)
         self.training_model.compile(loss=lambda y_true, y_pred: y_pred, optimizer=optimizer, **kwargs)
 
-        self.prediction_model = Model(input=[self.question, self.answer_good], output=similarities[0])
-        self.prediction_model.compile(loss=lambda y_true, y_pred: y_pred, optimizer=optimizer, **kwargs)
+        self.prediction_model = Model(input=[self.question, self.answer_good], output=good_output)
+        self.prediction_model.compile(loss='binary_crossentropy', optimizer=optimizer, **kwargs)
 
     def fit(self, x, **kwargs):
         assert self.training_model is not None, 'Must compile the model before fitting data'
@@ -150,30 +145,30 @@ class LanguageModel:
 
 
 class EmbeddingModel(LanguageModel):
-    ''' This model actually performs stupidly well '''
-
     def build(self):
-        input, _ = self._get_inputs()
+        question, answer = self._get_inputs()
 
         # add embedding layers
         embedding = Embedding(self.config['n_words'], self.model_params.get('n_embed_dims', 141))
-        input_embedding = embedding(input)
+        question_embedding = embedding(question)
+        answer_embedding = embedding(answer)
 
         # dropout
         dropout = Dropout(0.5)
-        input_dropout = dropout(input_embedding)
+        question_dropout = dropout(question_embedding)
+        answer_dropout = dropout(answer_embedding)
 
         # maxpooling
         maxpool = Lambda(lambda x: K.max(x, axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
-        input_pool = maxpool(input_dropout)
+        question_maxpool = maxpool(question_dropout)
+        answer_maxpool = maxpool(answer_dropout)
 
         # activation
         activation = Activation('tanh')
-        output = activation(input_pool)
+        question_output = activation(question_maxpool)
+        answer_output = activation(answer_maxpool)
 
-        model = Model(input=[input], output=[output])
-
-        return model, model
+        return question_output, answer_output
 
 
 class ConvolutionModel(LanguageModel):
@@ -189,37 +184,31 @@ class ConvolutionModel(LanguageModel):
         question, answer = self._get_inputs()
 
         # add embedding layers
-        embedding_1 = Embedding(self.config['n_words'], self.model_params.get('n_embed_dims', 100))
-        embedding_2 = Embedding(self.config['n_words'], self.model_params.get('n_embed_dims', 100))
-        question_embedding = embedding_1(question)
-        answer_embedding = embedding_2(answer)
-
-        # use the same word embeddings for both the question and answer models
-        # embedding_1.set_weights(embedding_2.get_weights())
+        embedding = Embedding(self.config['n_words'], self.model_params.get('n_embed_dims', 100))
+        question_embedding = embedding(question)
+        answer_embedding = embedding(answer)
 
         # dropout
-        dropout = Dropout(0.25)
+        dropout = Dropout(0.5)
         question_dropout = dropout(question_embedding)
         answer_dropout = dropout(answer_embedding)
 
-        # # dense
-        # dense_1 = TimeDistributed(Dense(self.model_params.get('n_hidden', 200), activation='tanh'))
-        # dense_2 = TimeDistributed(Dense(self.model_params.get('n_hidden', 200), activation='tanh'))
-        # question_dense = dense_1(question_dropout)
-        # answer_dense = dense_2(answer_dropout)
-        #
-        # # use the same weights for both layers
-        # dense_1.set_weights(dense_2.get_weights())
-        #
-        # question_dropout = dropout(question_dense)
-        # answer_dropout = dropout(answer_dense)
+        # dense
+        dense = TimeDistributed(Dense(self.model_params.get('n_hidden', 200), activation='tanh'))
+        question_dense = dense(question_dropout)
+        answer_dense = dense(answer_dropout)
+
+        # dropout
+        question_dropout = dropout(question_dense)
+        answer_dropout = dropout(answer_dense)
 
         # cnn
-        question_cnn, cnns_1 = self.mixed_filter_lengths(question_dropout, [2, 3, 5, 7])
-        answer_cnn, cnns_2 = self.mixed_filter_lengths(answer_dropout, [2, 3, 5, 7])
-
-        for a, b in zip(cnns_1, cnns_2):
-            b.set_weights(a.get_weights())
+        cnns = [Convolution1D(filter_length=filter_length,
+                              nb_filter=self.model_params.get('nb_filters', 1000),
+                              activation=self.model_params.get('conv_activation', 'relu'),
+                              border_mode='same') for filter_length in [2, 3, 4, 5]]
+        question_cnn = merge([cnn(question_dropout) for cnn in cnns], mode='concat')
+        answer_cnn = merge([cnn(answer_dropout) for cnn in cnns], mode='concat')
 
         # dropout
         question_dropout = dropout(question_cnn)
@@ -235,9 +224,7 @@ class ConvolutionModel(LanguageModel):
         question_output = activation(question_pool)
         answer_output = activation(answer_pool)
 
-        question_model = Model(input=[question], output=[question_output])
-        answer_model = Model(input=[answer], output=[answer_output])
-        return question_model, answer_model
+        return question_output, answer_output
 
 
 class RecurrentModel(LanguageModel):
@@ -280,60 +267,3 @@ class RecurrentModel(LanguageModel):
 
         model = Model(input=[input], output=[output])
         return model, model
-
-
-class AttentionModel(LanguageModel):
-    def build(self):
-        question, answer = self._get_inputs()
-
-        # add embedding layers
-        embedding = Embedding(self.config['n_words'], self.model_params.get('n_embed_dims', 141))
-        question_embedding = embedding(question)
-
-        a_embedding = Embedding(self.config['n_words'], self.model_params.get('n_embed_dims', 141))
-        answer_embedding = embedding(answer)
-
-        a_embedding.set_weights(embedding.get_weights())
-
-        # dropout
-        dropout = Dropout(0.5)
-        question_dropout = dropout(question_embedding)
-        answer_dropout = dropout(answer_embedding)
-
-        # rnn
-        forward_lstm = LSTM(self.config.get('n_lstm_dims', 141), consume_less='mem', return_sequences=True)
-        backward_lstm = LSTM(self.config.get('n_lstm_dims', 141), consume_less='mem', return_sequences=True)
-        question_lstm = merge([forward_lstm(question_dropout), backward_lstm(question_dropout)], mode='concat', concat_axis=-1)
-
-        # dropout
-        question_dropout = dropout(question_lstm)
-
-        # maxpooling
-        maxpool = Lambda(lambda x: K.max(x, axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
-        question_pool = maxpool(question_dropout)
-
-        # activation
-        activation = Activation('tanh')
-        question_output = activation(question_pool)
-
-        question_model = Model(input=[question], output=[question_output])
-
-        # attentional rnn
-        forward_lstm = AttentionLSTM(self.config.get('n_lstm_dims', 141), question_output, consume_less='mem', return_sequences=True)
-        backward_lstm = AttentionLSTM(self.config.get('n_lstm_dims', 141), question_output, consume_less='mem', return_sequences=True)
-        answer_lstm = merge([forward_lstm(answer_dropout), backward_lstm(answer_dropout)], mode='concat', concat_axis=-1)
-
-        # dropout
-        answer_dropout = dropout(answer_lstm)
-
-        # maxpooling
-        maxpool = Lambda(lambda x: K.max(x, axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
-        answer_pool = maxpool(answer_dropout)
-
-        # activation
-        activation = Activation('tanh')
-        answer_output = activation(answer_pool)
-
-        answer_model = Model(input=[question, answer], output=[answer_output])
-
-        return question_model, answer_model

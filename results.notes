@@ -51,9 +51,49 @@ Pure CNN Model:
 
 Embedding + MaxPooling:
  - I can't believe this model performed so well. It blew the other ones out of the water, and trains ridiculously quickly.
- - Test 1: Top-1 Precision = 0.4933, MRR = 0.6189
- - Test 2: Top-1 Precision = 0.4606, MRR = 0.5968
- - Dev: Top-1 Precision = 0.4700, MRR = 0.6088
+ - Test 1: Top-1 Precision = 0.4922, MRR = 0.6239
+ - Test 2: Top-1 Precision = 0.4817, MRR = 0.6110
+ - Dev: Top-1 Precision = 0.4950, MRR = 0.6244
+ - Adding more embedding dimensions (beyond 1000) didn't lead to an improvement
+ - Converted after about 20 epochs
+ - Validation loss was around 7e-4 (with margin of 0.009)
+ - Configuration:
+    conf = {
+        'question_len': 100,
+        'answer_len': 100,
+        'n_words': 22353, # len(vocabulary) + 1
+        'margin': 0.009,
+
+        'training_params': {
+            'save_every': 1,
+            'eval_every': 20,
+            'batch_size': 128,
+            'nb_epoch': 1000,
+            'validation_split': 0.2,
+            'optimizer': 'adam',
+            # 'n_eval': 20,
+        },
+
+        'model_params': {
+            'n_embed_dims': 1000,
+            'n_hidden': 200,
+
+            # convolution
+            'nb_filters': 1000,
+            'conv_activation': 'relu',
+
+            # recurrent
+            'n_lstm_dims': 300,
+        },
+
+        'similarity_params': {
+            'mode': 'cosine',
+            'gamma': 1,
+            'c': 1,
+            'd': 2,
+        }
+    }
+
 
 Model described in paper (Dense + CNN):
  - Top 1 precision:
@@ -64,10 +104,5 @@ Model described in paper (Dense + CNN):
    - 0.328 on test 1
    - 0.319 on test 2
    - 0.343 on dev
-
-Plain Embedding + CNN:
- - Top 1 precision:
-   - 0.364 on test 1
- - MRR:
-   - 0.517 on test 1
+ - Why won't this train better :(
 

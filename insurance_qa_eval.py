@@ -6,6 +6,7 @@ from time import strftime, gmtime
 
 import pickle
 
+from keras.optimizers import Adam
 from scipy.stats import rankdata
 
 from keras_models import *
@@ -41,6 +42,17 @@ class Evaluator:
             self._reverse_vocab = dict((v.lower(), k) for k, v in vocab.items())
         return self._reverse_vocab
 
+    ##### Loading / saving #####
+
+    def save_epoch(self, model, epoch):
+        if not os.path.exists('models/'):
+            os.makedirs('models/')
+        model.save_weights('models/weights_epoch_%d.h5' % epoch, overwrite=True)
+
+    def load_epoch(self, model, epoch):
+        assert os.path.exists('models/weights_epoch_%d.h5' % epoch), 'Weights at epoch %d not found' % epoch
+        model.load_weights('models/weights_epoch_%d.h5' % epoch)
+
     ##### Converting / reverting #####
 
     def convert(self, words):
@@ -75,6 +87,7 @@ class Evaluator:
         save_every = self.params.get('save_every', None)
         batch_size = self.params.get('batch_size', 128)
         nb_epoch = self.params.get('nb_epoch', 10)
+        split = self.params.get('validation_split', 0)
 
         training_set = self.load('train')
 
@@ -96,13 +109,13 @@ class Evaluator:
 
             print('Epoch %d :: ' % i, end='')
             self.print_time()
-            model.fit([questions, good_answers, bad_answers], nb_epoch=1, batch_size=batch_size)
+            model.fit([questions, good_answers, bad_answers], nb_epoch=1, batch_size=batch_size, validation_split=split)
 
             if eval_every is not None and (i+1) % eval_every == 0:
                 self.get_mrr(model)
 
             if save_every is not None and (i+1) % save_every == 0:
-                model.save_weights('weights.h5')
+                self.save_epoch(model, (i+1))
 
     ##### Evaluation #####
 
@@ -131,7 +144,7 @@ class Evaluator:
                 question = self.padq([d['question']] * len(d['good'] + d['bad']))
 
                 n_good = len(d['good'])
-                sims = model.predict([question, answers], verbose=1, batch_size=128).flatten()
+                sims = model.predict([question, answers], batch_size=300).flatten()
                 r = rankdata(sims, method='max')
 
                 max_r = np.argmax(r)
@@ -155,21 +168,23 @@ class Evaluator:
 
 if __name__ == '__main__':
     conf = {
-        'question_len': 20,
+        'question_len': 100,
         'answer_len': 100,
         'n_words': 22353, # len(vocabulary) + 1
-        'margin': 0.1,
+        'margin': 0.009,
 
         'training_params': {
-            'eval_every': 25,
-            'save_every': None,
+            'save_every': 1,
+            # 'eval_every': 20,
             'batch_size': 128,
-            'nb_epoch': 100,
+            'nb_epoch': 1000,
+            'validation_split': 0.2,
+            'optimizer': 'adam',
             # 'n_eval': 20,
         },
 
         'model_params': {
-            'n_embed_dims': 300,
+            'n_embed_dims': 1000,
             'n_hidden': 200,
 
             # convolution
@@ -192,6 +207,12 @@ if __name__ == '__main__':
 
     ##### Define model ######
     model = ConvolutionModel(conf)
-    model.compile(optimizer='adam')
+    optimizer = conf.get('training_params', dict()).get('optimizer', 'adam')
+    model.compile(optimizer=optimizer)
 
+    # train the model
     evaluator.train(model)
+
+    # evaluate mrr for a particular epoch
+    # evaluator.load_epoch(model, -1)
+    # evaluator.get_mrr(model)
