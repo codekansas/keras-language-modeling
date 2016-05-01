@@ -55,3 +55,19 @@ Embedding + MaxPooling:
  - Test 2: Top-1 Precision = 0.4606, MRR = 0.5968
  - Dev: Top-1 Precision = 0.4700, MRR = 0.6088
 
+Model described in paper (Dense + CNN):
+ - Top 1 precision:
+   - 0.183 on test 1
+   - 0.178 on test 2
+   - 0.204 on dev
+ - MRR:
+   - 0.328 on test 1
+   - 0.319 on test 2
+   - 0.343 on dev
+
+Plain Embedding + CNN:
+ - Top 1 precision:
+   - 0.364 on test 1
+ - MRR:
+   - 0.517 on test 1
+

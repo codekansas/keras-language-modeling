@@ -131,7 +131,7 @@ class Evaluator:
                 question = self.padq([d['question']] * len(d['good'] + d['bad']))
 
                 n_good = len(d['good'])
-                sims = model.predict([question, answers]).flatten()
+                sims = model.predict([question, answers], verbose=1, batch_size=128).flatten()
                 r = rankdata(sims, method='max')
 
                 max_r = np.argmax(r)
@@ -155,13 +155,13 @@ class Evaluator:
 
 if __name__ == '__main__':
     conf = {
-        'question_len': 10,
-        'answer_len': 40,
+        'question_len': 20,
+        'answer_len': 100,
         'n_words': 22353, # len(vocabulary) + 1
-        'margin': 0.009,
+        'margin': 0.1,
 
         'training_params': {
-            'eval_every': 10,
+            'eval_every': 25,
             'save_every': None,
             'batch_size': 128,
             'nb_epoch': 100,
@@ -169,7 +169,7 @@ if __name__ == '__main__':
         },
 
         'model_params': {
-            'n_embed_dims': 1000,
+            'n_embed_dims': 300,
             'n_hidden': 200,
 
             # convolution
@@ -177,7 +177,7 @@ if __name__ == '__main__':
             'conv_activation': 'relu',
 
             # recurrent
-            'n_lstm_dims': 141,
+            'n_lstm_dims': 300,
         },
 
         'similarity_params': {
@@ -191,7 +191,7 @@ if __name__ == '__main__':
     evaluator = Evaluator(data_path, conf)
 
     ##### Define model ######
-    model = RecurrentModel(conf)
+    model = ConvolutionModel(conf)
     model.compile(optimizer='adam')
 
     evaluator.train(model)

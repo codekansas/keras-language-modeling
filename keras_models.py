@@ -4,7 +4,7 @@ from abc import abstractmethod
 
 from keras.engine import Input
 from keras.layers import merge, Embedding, Dropout, Convolution1D, Lambda, Activation, LSTM, Dense, TimeDistributed, \
-    ActivityRegularization
+    ActivityRegularization, Flatten
 from keras import backend as K
 from keras.models import Model
 
@@ -177,48 +177,67 @@ class EmbeddingModel(LanguageModel):
 
 
 class ConvolutionModel(LanguageModel):
-    def build(self):
-        input, _ = self._get_inputs()
-
-        # add embedding layers
-        embedding = Embedding(self.config['n_words'], self.model_params.get('n_embed_dims', 141))
-        input_embedding = embedding(input)
-
-        # dropout
-        dropout = Dropout(0.5)
-        input_dropout = dropout(input_embedding)
-
-        # hidden layer
-        dense = TimeDistributed(Dense(self.model_params.get('n_hidden', 200), activation='tanh'))
-        input_dense = dense(input_dropout)
-
-        # regularizer
-        input_dense = ActivityRegularization(l2=0.0001)(input_dense)
-
-        # dropout
-        input_dropout = dropout(input_dense)
-
-        # cnn
+    def mixed_filter_lengths(self, input, filter_lengths):
         cnns = [Convolution1D(filter_length=filter_length,
                               nb_filter=self.model_params.get('nb_filters', 1000),
                               activation=self.model_params.get('conv_activation', 'relu'),
-                              border_mode='same') for filter_length in [2, 3, 5, 7]]
-        input_cnn = merge([cnn(input_dropout) for cnn in cnns], mode='concat')
+                              border_mode='same') for filter_length in filter_lengths]
+
+        return merge([cnn(input) for cnn in cnns], mode='concat'), cnns
+
+    def build(self):
+        question, answer = self._get_inputs()
+
+        # add embedding layers
+        embedding_1 = Embedding(self.config['n_words'], self.model_params.get('n_embed_dims', 100))
+        embedding_2 = Embedding(self.config['n_words'], self.model_params.get('n_embed_dims', 100))
+        question_embedding = embedding_1(question)
+        answer_embedding = embedding_2(answer)
+
+        # use the same word embeddings for both the question and answer models
+        # embedding_1.set_weights(embedding_2.get_weights())
 
         # dropout
-        input_dropout = dropout(input_cnn)
+        dropout = Dropout(0.25)
+        question_dropout = dropout(question_embedding)
+        answer_dropout = dropout(answer_embedding)
+
+        # # dense
+        # dense_1 = TimeDistributed(Dense(self.model_params.get('n_hidden', 200), activation='tanh'))
+        # dense_2 = TimeDistributed(Dense(self.model_params.get('n_hidden', 200), activation='tanh'))
+        # question_dense = dense_1(question_dropout)
+        # answer_dense = dense_2(answer_dropout)
+        #
+        # # use the same weights for both layers
+        # dense_1.set_weights(dense_2.get_weights())
+        #
+        # question_dropout = dropout(question_dense)
+        # answer_dropout = dropout(answer_dense)
+
+        # cnn
+        question_cnn, cnns_1 = self.mixed_filter_lengths(question_dropout, [2, 3, 5, 7])
+        answer_cnn, cnns_2 = self.mixed_filter_lengths(answer_dropout, [2, 3, 5, 7])
+
+        for a, b in zip(cnns_1, cnns_2):
+            b.set_weights(a.get_weights())
+
+        # dropout
+        question_dropout = dropout(question_cnn)
+        answer_dropout = dropout(answer_cnn)
 
         # maxpooling
         maxpool = Lambda(lambda x: K.max(x, axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
-        input_pool = maxpool(input_dropout)
+        question_pool = maxpool(question_dropout)
+        answer_pool = maxpool(answer_dropout)
 
         # activation
         activation = Activation('tanh')
-        output = activation(input_pool)
+        question_output = activation(question_pool)
+        answer_output = activation(answer_pool)
 
-        model = Model(input=[input], output=[output])
-
-        return model, model
+        question_model = Model(input=[question], output=[question_output])
+        answer_model = Model(input=[answer], output=[answer_output])
+        return question_model, answer_model
 
 
 class RecurrentModel(LanguageModel):
@@ -240,6 +259,16 @@ class RecurrentModel(LanguageModel):
 
         # dropout
         input_dropout = dropout(input_lstm)
+
+        # cnn
+        cnns = [Convolution1D(filter_length=filter_length,
+                              nb_filter=self.model_params.get('nb_filters', 1000),
+                              activation=self.model_params.get('conv_activation', 'relu'),
+                              border_mode='same') for filter_length in [2, 3, 5, 7]]
+        input_cnn = merge([cnn(input_dropout) for cnn in cnns], mode='concat')
+
+        # dropout
+        input_dropout = dropout(input_cnn)
 
         # maxpooling
         maxpool = Lambda(lambda x: K.mean(K.exp(x), axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
