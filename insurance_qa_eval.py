@@ -13,8 +13,6 @@ from keras_models import *
 
 random.seed(42)
 
-data_path = '/media/moloch/HHD/MachineLearning/data/insuranceQA/pyenc'
-
 
 class Evaluator:
     def __init__(self, path, conf=None):
@@ -188,11 +186,11 @@ class Evaluator:
             top1_threshold = evaluate_all_threshold.get('top1', 1)
 
             if evaluate_mode == 'any':
-                evaluate_all = evaluate_all or any([x > top1_threshold for x in top1s])
-                evaluate_all = evaluate_all or any([x > mrr_theshold for x in mrrs])
+                evaluate_all = evaluate_all or any([x >= top1_threshold for x in top1s])
+                evaluate_all = evaluate_all or any([x >= mrr_theshold for x in mrrs])
             else:
-                evaluate_all = evaluate_all or all([x > top1_threshold for x in top1s])
-                evaluate_all = evaluate_all or all([x > mrr_theshold for x in mrrs])
+                evaluate_all = evaluate_all or all([x >= top1_threshold for x in top1s])
+                evaluate_all = evaluate_all and all([x >= mrr_theshold for x in mrrs])
 
             if evaluate_all:
                 return self.get_mrr(model, evaluate_all=True)
@@ -200,6 +198,8 @@ class Evaluator:
         return top1s, mrrs
 
 if __name__ == '__main__':
+    data_path = '/media/moloch/HHD/MachineLearning/data/insuranceQA/pyenc'
+
     conf = {
         'question_len': 100,
         'answer_len': 100,
@@ -216,7 +216,7 @@ if __name__ == '__main__':
             'n_eval': 20,
 
             'evaluate_all_threshold': {
-                'mode': 'any',
+                'mode': 'all',
                 'top1': 0.55,
             },
         },
@@ -230,7 +230,7 @@ if __name__ == '__main__':
             'conv_activation': 'relu',
 
             # recurrent
-            'n_lstm_dims': 300,
+            'n_lstm_dims': 141,
         },
 
         'similarity_params': {
@@ -248,16 +248,24 @@ if __name__ == '__main__':
     optimizer = conf.get('training_params', dict()).get('optimizer', 'adam')
     model.compile(optimizer=optimizer)
 
-    # load pre-trained embedding layer
     import numpy as np
-    weights = np.load('models/embedding_100_dim.h5')
+
+    # save embedding layer
+    # embedding_layer = model.prediction_model.layers[2].layers[2]
+    # evaluator.load_epoch(model, 100)
+    # evaluator.train(model)
+    # weights = embedding_layer.get_weights()[0]
+    # np.save(open('models/embedding_200_dim.h5', 'wb'), weights)
+
+    # load pre-trained embedding layer
+    weights = np.load('models/word2vec_100_dim.h5')
     language_model = model.prediction_model.layers[2]
     language_model.layers[2].set_weights([weights])
 
     # train the model
-    evaluator.load_epoch(model, 10)
+    evaluator.load_epoch(model, 40)
     evaluator.train(model)
 
     # evaluate mrr for a particular epoch
-    # evaluator.load_epoch(model, 10)
-    # evaluator.get_mrr(model)
+    # evaluator.load_epoch(model, 52)
+    # evaluator.get_mrr(model, evaluate_all=True)

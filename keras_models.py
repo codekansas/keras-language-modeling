@@ -172,14 +172,6 @@ class EmbeddingModel(LanguageModel):
 
 
 class ConvolutionModel(LanguageModel):
-    def mixed_filter_lengths(self, input, filter_lengths):
-        cnns = [Convolution1D(filter_length=filter_length,
-                              nb_filter=self.model_params.get('nb_filters', 1000),
-                              activation=self.model_params.get('conv_activation', 'relu'),
-                              border_mode='same') for filter_length in filter_lengths]
-
-        return merge([cnn(input) for cnn in cnns], mode='concat'), cnns
-
     def build(self):
         assert self.config['question_len'] == self.config['answer_len']
 
@@ -241,43 +233,46 @@ class ConvolutionModel(LanguageModel):
         return question_output, answer_output
 
 
-class RecurrentModel(LanguageModel):
+class AttentionModel(LanguageModel):
     def build(self):
-        input, _ = self._get_inputs()
+        question, answer = self._get_inputs()
 
         # add embedding layers
-        embedding = Embedding(self.config['n_words'], self.model_params.get('n_embed_dims', 141))
-        input_embedding = embedding(input)
+        embedding = Embedding(self.config['n_words'], self.model_params.get('n_embed_dims', 100))
+        question_embedding = embedding(question)
+        answer_embedding = embedding(answer)
+
+        # turn off layer updating
+        embedding.params = []
+        embedding.updates = []
 
         # dropout
-        dropout = Dropout(0.5)
-        input_dropout = dropout(input_embedding)
+        dropout = Dropout(0.25)
+        question_dropout = dropout(question_embedding)
+        answer_dropout = dropout(answer_embedding)
 
-        # rnn
-        forward_lstm = LSTM(self.config.get('n_lstm_dims', 141), consume_less='mem', return_sequences=True)
-        backward_lstm = LSTM(self.config.get('n_lstm_dims', 141), consume_less='mem', return_sequences=True)
-        input_lstm = merge([forward_lstm(input_dropout), backward_lstm(input_dropout)], mode='concat', concat_axis=-1)
+        # question rnn part
+        f_rnn = LSTM(self.model_params.get('n_lstm_dims', 141), return_sequences=True)
+        b_rnn = LSTM(self.model_params.get('n_lstm_dims', 141), return_sequences=True, go_backwards=True)
+        question_rnn = merge([f_rnn(question_dropout), b_rnn(question_dropout)], mode='concat', concat_axis=-1)
+        question_dropout = dropout(question_rnn)
 
-        # dropout
-        input_dropout = dropout(input_lstm)
-
-        # cnn
-        cnns = [Convolution1D(filter_length=filter_length,
-                              nb_filter=self.model_params.get('nb_filters', 1000),
-                              activation=self.model_params.get('conv_activation', 'relu'),
-                              border_mode='same') for filter_length in [2, 3, 5, 7]]
-        input_cnn = merge([cnn(input_dropout) for cnn in cnns], mode='concat')
-
-        # dropout
-        input_dropout = dropout(input_cnn)
+        # could add convolution layer here (as in paper)
 
         # maxpooling
-        maxpool = Lambda(lambda x: K.mean(K.exp(x), axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
-        input_pool = maxpool(input_dropout)
+        maxpool = Lambda(lambda x: K.max(x, axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
+        question_pool = maxpool(question_dropout)
+
+        # answer rnn part
+        f_rnn = AttentionLSTM(self.model_params.get('n_lstm_dims', 141), question_pool, return_sequences=True)
+        b_rnn = AttentionLSTM(self.model_params.get('n_lstm_dims', 141), question_pool, return_sequences=True, go_backwards=True)
+        answer_rnn = merge([f_rnn(answer_dropout), b_rnn(answer_dropout)], mode='concat', concat_axis=-1)
+        answer_dropout = dropout(answer_rnn)
+        answer_pool = maxpool(answer_dropout)
 
         # activation
         activation = Activation('tanh')
-        output = activation(input_pool)
+        question_output = activation(question_pool)
+        answer_output = activation(answer_pool)
 
-        model = Model(input=[input], output=[output])
-        return model, model
+        return question_output, answer_output
