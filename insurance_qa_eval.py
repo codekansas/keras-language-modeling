@@ -201,7 +201,7 @@ if __name__ == '__main__':
     data_path = '/media/moloch/HHD/MachineLearning/data/insuranceQA/pyenc'
 
     conf = {
-        'question_len': 100,
+        'question_len': 20,
         'answer_len': 100,
         'n_words': 22353, # len(vocabulary) + 1
         'margin': 0.009,
@@ -234,7 +234,7 @@ if __name__ == '__main__':
         },
 
         'similarity_params': {
-            'mode': 'cosine',
+            'mode': 'gesd',
             'gamma': 1,
             'c': 1,
             'd': 2,
@@ -244,7 +244,7 @@ if __name__ == '__main__':
     evaluator = Evaluator(data_path, conf)
 
     ##### Define model ######
-    model = ConvolutionModel(conf)
+    model = AttentionModel(conf)
     optimizer = conf.get('training_params', dict()).get('optimizer', 'adam')
     model.compile(optimizer=optimizer)
 
@@ -263,9 +263,9 @@ if __name__ == '__main__':
     language_model.layers[2].set_weights([weights])
 
     # train the model
-    # evaluator.load_epoch(model, 40)
+    # evaluator.load_epoch(model, 25)
     # evaluator.train(model)
 
     # evaluate mrr for a particular epoch
-    evaluator.load_epoch(model, 4)
+    evaluator.load_epoch(model, 115)
     evaluator.get_mrr(model, evaluate_all=True)

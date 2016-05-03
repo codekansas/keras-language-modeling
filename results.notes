@@ -1,91 +1,16 @@
-Single-layer bi-LSTM with max pooling, 40 words per sentence, loss margin of 0.2
- - MRR ~0.17
- - Seemed to converge after about 20 epochs, with randomization between epochs
- - Using the pure embedding layer worked better than using the Word2Vec model (gave MRR ~0.09)
+Best results achieved for each model:
 
-CNN + ALSTM model seems to have good loss
- - In general, the model predicts the topics well, but doesn't necessarily match it well with the question. This might be due to the masking issue.
- - MRR: 0.30957
-
-2 ALSTM + MaxPooling
- - MRR: 0.0147 (didn't converge)
-
-Pure CNN Model:
- - 4000 filters
- - Maxpooling
- - After 120 epochs, InsuranceQA MRR = 0.530 and Top-1 Precision = 0.401
-   - Decreased slightly with further training due to overfitting
- - Mixing together different filter lengths improved it to MRR = 0.56 and Top-1 Precision = 0.44
- - Validation loss around 6e-4 (lower than maxpooling) underperformed compared to maxpooling
-
-Embedding + MaxPooling:
- - I can't believe this model performed so well. It blew the other ones out of the water, and trains ridiculously quickly.
- - Test 1: Top-1 Precision = 0.4922, MRR = 0.6239
- - Test 2: Top-1 Precision = 0.4817, MRR = 0.6110
- - Dev: Top-1 Precision = 0.4950, MRR = 0.6244
- - With 100 dimensions, Top-1 Precision = 0.281, MRR = 0.417 on test 1
- - Adding more embedding dimensions (beyond 1000) didn't lead to an improvement
- - Converted after about 20 epochs
- - Validation loss was around 7e-4 (with margin of 0.009)
- - Configuration:
-    conf = {
-        'question_len': 100,
-        'answer_len': 100,
-        'n_words': 22353, # len(vocabulary) + 1
-        'margin': 0.009,
-
-        'training_params': {
-            'save_every': 1,
-            'eval_every': 20,
-            'batch_size': 128,
-            'nb_epoch': 1000,
-            'validation_split': 0.2,
-            'optimizer': 'adam',
-            # 'n_eval': 20,
-        },
-
-        'model_params': {
-            'n_embed_dims': 1000,
-            'n_hidden': 200,
-
-            # convolution
-            'nb_filters': 1000,
-            'conv_activation': 'relu',
-
-            # recurrent
-            'n_lstm_dims': 300,
-        },
-
-        'similarity_params': {
-            'mode': 'cosine',
-            'gamma': 1,
-            'c': 1,
-            'd': 2,
-        }
-    }
-
-
-Model described in paper (Dense + CNN):
- - Top 1 precision:
-   - 0.183 on test 1
-   - 0.178 on test 2
-   - 0.204 on dev
+Embedding + Max Pooling:
+ - Top 1 Precision:
+   - 0.492 on test 1
+   - 0.483 on test 2
+   - 0.495 on dev
  - MRR:
-   - 0.328 on test 1
-   - 0.319 on test 2
-   - 0.343 on dev
- - Why won't this train better :(
+   - 0.624 on test 1
+   - 0.611 on test 2
+   - 0.624 on dev
 
- - Best validation loss was about 0.0011 (for margin of 0.009)
- - After increasing the number of parameters/embedding size the model improved a bit
- - Top 1 precision:
-   - 0.327 on test 1
-   - 0.302 on test 2
- - MRR:
-   - 0.459 on test 1
-   - 0.433 on test 2
-
- - Pre-trained the embedding layer via the EmbeddingModel, re-ran
+Dense + CNN + Max Pooling:
  - Top 1 precision:
    - 0.507 on test 1
    - 0.427 on test 2
@@ -95,8 +20,13 @@ Model described in paper (Dense + CNN):
    - 0.557 on test 2
    - 0.596 on dev
 
-1000 embed dims + 2000 CNN filters (total over 4 lengths):
- - Loss ~6e-4 for margin of 0.009
- - Test 1: 0.409 Top-1 Precision, 0.543 MRR
- - Test 2: 0.376 Top-1 Precision, 0.507 MRR
+Attentional LSTM + Max Pooling:
+ - Top 1 precision:
+   - 0.480 on test 1
+   - 0.465 on test 2
+   - 0.487 on dev
+ - MRR:
+   - 0.627 on test 1
+   - 0.613 on test 2
+   - 0.635 on dev
 

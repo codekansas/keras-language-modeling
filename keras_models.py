@@ -15,9 +15,9 @@ from attention_lstm import AttentionLSTM
 
 class LanguageModel:
     def __init__(self, config):
-        self.question = Input(shape=(config['question_len'],), dtype='int32', name='question')
-        self.answer_good = Input(shape=(config['answer_len'],), dtype='int32', name='answer_good')
-        self.answer_bad = Input(shape=(config['answer_len'],), dtype='int32', name='answer_bad')
+        self.question = Input(shape=(config['question_len'],), dtype='int32', name='question_base')
+        self.answer_good = Input(shape=(config['answer_len'],), dtype='int32', name='answer_good_base')
+        self.answer_bad = Input(shape=(config['answer_len'],), dtype='int32', name='answer_bad_base')
 
         self.config = config
         self.model_params = config.get('model_params', dict())
@@ -26,17 +26,16 @@ class LanguageModel:
         # initialize a bunch of variables that will be set later
         self._models = None
         self._similarities = None
-        self._inputs = None
+        self._answer = None
         self._qa_model = None
 
         self.training_model = None
         self.prediction_model = None
 
-    def _get_inputs(self):
-        if self._inputs is None:
-            self._inputs = [Input(shape=(self.config['question_len'],), dtype='int32', name='question'),
-                            Input(shape=(self.config['answer_len'],), dtype='int32', name='answer')]
-        return self._inputs
+    def get_answer(self):
+        if self._answer is None:
+            self._answer = Input(shape=(self.config['answer_len'],), dtype='int32', name='answer')
+        return self._answer
 
     @abstractmethod
     def build(self):
@@ -107,7 +106,7 @@ class LanguageModel:
             similarity = self.get_similarity()
             qa_model = merge([question_output, answer_output], mode=similarity, output_shape=lambda x: x[:-1])
 
-            self._qa_model = Model(input=self._get_inputs(), output=[qa_model])
+            self._qa_model = Model(input=[self.question, self.get_answer()], output=[qa_model])
 
         return self._qa_model
 
@@ -146,7 +145,8 @@ class LanguageModel:
 
 class EmbeddingModel(LanguageModel):
     def build(self):
-        question, answer = self._get_inputs()
+        question = self.question
+        answer = self.get_answer()
 
         # add embedding layers
         embedding = Embedding(self.config['n_words'], self.model_params.get('n_embed_dims', 141))
@@ -175,7 +175,8 @@ class ConvolutionModel(LanguageModel):
     def build(self):
         assert self.config['question_len'] == self.config['answer_len']
 
-        question, answer = self._get_inputs()
+        question = self.question
+        answer = self.get_answer()
 
         # add embedding layers
         embedding = Embedding(self.config['n_words'], self.model_params.get('n_embed_dims', 100))
@@ -235,7 +236,8 @@ class ConvolutionModel(LanguageModel):
 
 class AttentionModel(LanguageModel):
     def build(self):
-        question, answer = self._get_inputs()
+        question = self.question
+        answer = self.get_answer()
 
         # add embedding layers
         embedding = Embedding(self.config['n_words'], self.model_params.get('n_embed_dims', 100))
@@ -266,6 +268,8 @@ class AttentionModel(LanguageModel):
         # answer rnn part
         f_rnn = AttentionLSTM(self.model_params.get('n_lstm_dims', 141), question_pool, return_sequences=True)
         b_rnn = AttentionLSTM(self.model_params.get('n_lstm_dims', 141), question_pool, return_sequences=True, go_backwards=True)
+        # f_rnn = LSTM(self.model_params.get('n_lstm_dims', 141), return_sequences=True)
+        # b_rnn = LSTM(self.model_params.get('n_lstm_dims', 141), return_sequences=True, go_backwards=True)
         answer_rnn = merge([f_rnn(answer_dropout), b_rnn(answer_dropout)], mode='concat', concat_axis=-1)
         answer_dropout = dropout(answer_rnn)
         answer_pool = maxpool(answer_dropout)
