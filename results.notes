@@ -4,32 +4,6 @@ Single-layer bi-LSTM with max pooling, 40 words per sentence, loss margin of 0.2
  - Using the pure embedding layer worked better than using the Word2Vec model (gave MRR ~0.09)
 
 CNN + ALSTM model seems to have good loss
- - MRR ~0.33 (I think)
-
-CNN + ALSTM
- - Example error:
-   - Question: be home insurance negotiable
-   - Desired answer: I not sure exactly what you mean but if you mean go without then no a mortgage company will not allow
-     that and if you own outright it will be a foolish choice go without if you mean price negotiation (ranked 177)
-   - Highest-rank answer: no homeowner be not mandatory in Pennsylvania however if you be apply for any type of homeowner
-     loan most bank will require you purchase insurance process the loan the bank will also ask be list as the lien holder if
-
- - Example error:
-   - Question: what be Suze Orman advice on long term care insurance
-   - Desired answer: Suze Orman recommend long-term care insurance if it fit and 1 can medically qualify for it she be
-     currently take care of her 90 year old mother who refuse to letSuze buy long-term care insurance on her when she can
-     (rank ~460)
-   - Highest-rank answer: a good age buy long-term care insurance when you be in a good financial position and have some
-     extra disposable income also if your health be good you will save thousand dollar potentially in premium need specific
-     number how about
-
- - Example error:
-   - Question: can you get Life Insurance on someone else
-   - Desired answer: you can get life insurance on someone else if you have an insurable interest with them an example of
-     insurable interest be this : if a nonrelative owe you money you can take out a life insurance policy on them (rank 498)
-   - Highest-rank answer: I assume when you ask Doe someone have a life insurance policy on me , you be ask about someone
-     other than your parent as an adult no one can take a policy out on you without you give your
-
  - In general, the model predicts the topics well, but doesn't necessarily match it well with the question. This might be due to the masking issue.
  - MRR: 0.30957
 
@@ -42,18 +16,14 @@ Pure CNN Model:
  - After 120 epochs, InsuranceQA MRR = 0.530 and Top-1 Precision = 0.401
    - Decreased slightly with further training due to overfitting
  - Mixing together different filter lengths improved it to MRR = 0.56 and Top-1 Precision = 0.44
-
- - Example error:
-   - Question: how much do Disability Income insurance cost
-   - Desired answer: disability income insurance can cost between $50 and $5,000 per month yes that be a ridiculously big range but there be so many variable that determine the rate , I shall cover all base a full-time broker / agent can quickly ask you a few question and determine the good plan for the most affordable price
-   - Highest-rank answer: along with what Peggy and Steve mention make sure whoever you choose as your agent present you with multiple quote for disability insurance too often consumer think the cheap policy be good but it have likely that the cheap policy offer poor coverage your agent assume he or she do not represent just 1 company shall be able provide you different quote that reflect different type of coverage ( e.g. different benefit period , elimination period , different company , etc.
-   - Rank of best answer: 347.0
+ - Validation loss around 6e-4 (lower than maxpooling) underperformed compared to maxpooling
 
 Embedding + MaxPooling:
  - I can't believe this model performed so well. It blew the other ones out of the water, and trains ridiculously quickly.
  - Test 1: Top-1 Precision = 0.4922, MRR = 0.6239
  - Test 2: Top-1 Precision = 0.4817, MRR = 0.6110
  - Dev: Top-1 Precision = 0.4950, MRR = 0.6244
+ - With 100 dimensions, Top-1 Precision = 0.281, MRR = 0.417 on test 1
  - Adding more embedding dimensions (beyond 1000) didn't lead to an improvement
  - Converted after about 20 epochs
  - Validation loss was around 7e-4 (with margin of 0.009)
@@ -105,4 +75,28 @@ Model described in paper (Dense + CNN):
    - 0.319 on test 2
    - 0.343 on dev
  - Why won't this train better :(
+
+ - Best validation loss was about 0.0011 (for margin of 0.009)
+ - After increasing the number of parameters/embedding size the model improved a bit
+ - Top 1 precision:
+   - 0.327 on test 1
+   - 0.302 on test 2
+ - MRR:
+   - 0.459 on test 1
+   - 0.433 on test 2
+
+ - Pre-trained the embedding layer via the EmbeddingModel, re-ran
+ - Top 1 precision:
+   - 0.472 on test 1
+   - 0.427 on test 2
+   - 0.470 on dev
+ - MRR:
+   - 0.595 on test 1
+   - 0.557 on test 2
+   - 0.596 on dev
+
+1000 embed dims + 2000 CNN filters (total over 4 lengths):
+ - Loss ~6e-4 for margin of 0.009
+ - Test 1: 0.409 Top-1 Precision, 0.543 MRR
+ - Test 2: 0.376 Top-1 Precision, 0.507 MRR
 

@@ -136,12 +136,12 @@ class LanguageModel:
         return self.prediction_model.predict(x, **kwargs)
 
     def save_weights(self, file_name, **kwargs):
-        assert self.training_model is not None, 'Must compile the model before saving weights'
-        self.training_model.save_weights(file_name, **kwargs)
+        assert self.prediction_model is not None, 'Must compile the model before saving weights'
+        self.prediction_model.save_weights(file_name, **kwargs)
 
     def load_weights(self, file_name, **kwargs):
-        assert self.training_model is not None, 'Must compile the model loading weights'
-        self.training_model.load_weights(file_name, **kwargs)
+        assert self.prediction_model is not None, 'Must compile the model loading weights'
+        self.prediction_model.load_weights(file_name, **kwargs)
 
 
 class EmbeddingModel(LanguageModel):
@@ -181,6 +181,8 @@ class ConvolutionModel(LanguageModel):
         return merge([cnn(input) for cnn in cnns], mode='concat'), cnns
 
     def build(self):
+        assert self.config['question_len'] == self.config['answer_len']
+
         question, answer = self._get_inputs()
 
         # add embedding layers
@@ -188,8 +190,12 @@ class ConvolutionModel(LanguageModel):
         question_embedding = embedding(question)
         answer_embedding = embedding(answer)
 
+        # turn off layer updating
+        embedding.params = []
+        embedding.updates = []
+
         # dropout
-        dropout = Dropout(0.5)
+        dropout = Dropout(0.25)
         question_dropout = dropout(question_embedding)
         answer_dropout = dropout(answer_embedding)
 
@@ -197,6 +203,10 @@ class ConvolutionModel(LanguageModel):
         dense = TimeDistributed(Dense(self.model_params.get('n_hidden', 200), activation='tanh'))
         question_dense = dense(question_dropout)
         answer_dense = dense(answer_dropout)
+
+        # regularization
+        question_dense = ActivityRegularization(l2=0.0001)(question_dense)
+        answer_dense = ActivityRegularization(l2=0.0001)(answer_dense)
 
         # dropout
         question_dropout = dropout(question_dense)
@@ -206,9 +216,13 @@ class ConvolutionModel(LanguageModel):
         cnns = [Convolution1D(filter_length=filter_length,
                               nb_filter=self.model_params.get('nb_filters', 1000),
                               activation=self.model_params.get('conv_activation', 'relu'),
-                              border_mode='same') for filter_length in [2, 3, 4, 5]]
+                              border_mode='same') for filter_length in [2, 3, 5, 7]]
         question_cnn = merge([cnn(question_dropout) for cnn in cnns], mode='concat')
         answer_cnn = merge([cnn(answer_dropout) for cnn in cnns], mode='concat')
+
+        # regularization
+        question_cnn = ActivityRegularization(l2=0.0001)(question_cnn)
+        answer_cnn = ActivityRegularization(l2=0.0001)(answer_cnn)
 
         # dropout
         question_dropout = dropout(question_cnn)

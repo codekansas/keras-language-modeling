@@ -107,7 +107,7 @@ class Evaluator:
             # random.shuffle(bad_answers)
             bad_answers = self.pada(random.sample(self.answers.values(), len(good_answers)))
 
-            print('Epoch %d :: ' % i, end='')
+            print('Epoch %d :: ' % (i+1), end='')
             self.print_time()
             model.fit([questions, good_answers, bad_answers], nb_epoch=1, batch_size=batch_size, validation_split=split)
 
@@ -119,32 +119,45 @@ class Evaluator:
 
     ##### Evaluation #####
 
+    def prog_bar(self, so_far, total, n_bars=20):
+        n_complete = int(so_far * n_bars / total)
+        if n_complete >= n_bars - 1:
+            print('\r[' + '=' * n_bars + ']', end='')
+        else:
+            s = '\r[' + '=' * (n_complete - 1) + '>' + '.' * (n_bars - n_complete) + ']'
+            print(s, end='')
+
     def eval_sets(self):
         if self._eval_sets is None:
             self._eval_sets = dict([(s, self.load(s)) for s in ['dev', 'test1', 'test2']])
         return self._eval_sets
 
-    def get_mrr(self, model):
+    def get_mrr(self, model, evaluate_all=False):
         top1s = list()
         mrrs = list()
 
         for name, data in self.eval_sets().items():
-            self.print_time()
-            print('----- %s -----' % name)
+            if evaluate_all:
+                self.print_time()
+                print('----- %s -----' % name)
 
             random.shuffle(data)
 
-            if 'n_eval' in self.params:
+            if not evaluate_all and 'n_eval' in self.params:
                 data = data[:self.params['n_eval']]
 
             c_1, c_2 = 0, 0
 
-            for d in data:
+            c = 0
+            for i, d in enumerate(data):
+                if evaluate_all:
+                    self.prog_bar(i, len(data))
+
                 answers = self.pada([self.answers[i] for i in d['good'] + d['bad']])
                 question = self.padq([d['question']] * len(d['good'] + d['bad']))
 
                 n_good = len(d['good'])
-                sims = model.predict([question, answers], batch_size=300).flatten()
+                sims = model.predict([question, answers], batch_size=500).flatten()
                 r = rankdata(sims, method='max')
 
                 max_r = np.argmax(r)
@@ -158,11 +171,31 @@ class Evaluator:
 
             del data
 
-            print('Top-1 Precision: %f' % top1)
-            print('MRR: %f' % mrr)
+            if evaluate_all:
+                print('Top-1 Precision: %f' % top1)
+                print('MRR: %f' % mrr)
 
             top1s.append(top1)
             mrrs.append(mrr)
+
+        # rerun the evaluation if above some threshold
+        if not evaluate_all:
+            print('Top-1 Precision: {}'.format(top1s))
+            print('MRR: {}'.format(mrrs))
+            evaluate_all_threshold = self.params.get('evaluate_all_threshold', dict())
+            evaluate_mode = evaluate_all_threshold.get('mode', 'all')
+            mrr_theshold = evaluate_all_threshold.get('mrr', 1)
+            top1_threshold = evaluate_all_threshold.get('top1', 1)
+
+            if evaluate_mode == 'any':
+                evaluate_all = evaluate_all or any([x > top1_threshold for x in top1s])
+                evaluate_all = evaluate_all or any([x > mrr_theshold for x in mrrs])
+            else:
+                evaluate_all = evaluate_all or all([x > top1_threshold for x in top1s])
+                evaluate_all = evaluate_all or all([x > mrr_theshold for x in mrrs])
+
+            if evaluate_all:
+                return self.get_mrr(model, evaluate_all=True)
 
         return top1s, mrrs
 
@@ -175,16 +208,21 @@ if __name__ == '__main__':
 
         'training_params': {
             'save_every': 1,
-            # 'eval_every': 20,
+            'eval_every': 1,
             'batch_size': 128,
             'nb_epoch': 1000,
             'validation_split': 0.2,
             'optimizer': 'adam',
-            # 'n_eval': 20,
+            'n_eval': 20,
+
+            'evaluate_all_threshold': {
+                'mode': 'any',
+                'top1': 0.55,
+            },
         },
 
         'model_params': {
-            'n_embed_dims': 1000,
+            'n_embed_dims': 100,
             'n_hidden': 200,
 
             # convolution
@@ -210,9 +248,16 @@ if __name__ == '__main__':
     optimizer = conf.get('training_params', dict()).get('optimizer', 'adam')
     model.compile(optimizer=optimizer)
 
+    # load pre-trained embedding layer
+    import numpy as np
+    weights = np.load('models/embedding_100_dim.h5')
+    language_model = model.prediction_model.layers[2]
+    language_model.layers[2].set_weights([weights])
+
     # train the model
+    evaluator.load_epoch(model, 10)
     evaluator.train(model)
 
     # evaluate mrr for a particular epoch
-    # evaluator.load_epoch(model, -1)
+    # evaluator.load_epoch(model, 10)
     # evaluator.get_mrr(model)
