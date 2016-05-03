@@ -263,9 +263,9 @@ if __name__ == '__main__':
     language_model.layers[2].set_weights([weights])
 
     # train the model
-    evaluator.load_epoch(model, 40)
-    evaluator.train(model)
+    # evaluator.load_epoch(model, 40)
+    # evaluator.train(model)
 
     # evaluate mrr for a particular epoch
-    # evaluator.load_epoch(model, 52)
-    # evaluator.get_mrr(model, evaluate_all=True)
+    evaluator.load_epoch(model, 4)
+    evaluator.get_mrr(model, evaluate_all=True)

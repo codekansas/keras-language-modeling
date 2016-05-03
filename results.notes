@@ -87,11 +87,11 @@ Model described in paper (Dense + CNN):
 
  - Pre-trained the embedding layer via the EmbeddingModel, re-ran
  - Top 1 precision:
-   - 0.493 on test 1
+   - 0.507 on test 1
    - 0.427 on test 2
    - 0.470 on dev
  - MRR:
-   - 0.620 on test 1
+   - 0.635 on test 1
    - 0.557 on test 2
    - 0.596 on dev
 
