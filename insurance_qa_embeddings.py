@@ -23,9 +23,9 @@ def revert(vocab, indices):
 
 if __name__ == '__main__':
     try:
-        data_path = os.environ['DATA_PATH'] 
+        data_path = os.environ['INSURANCE_QA']
     except KeyError:
-        print("DATA_PATH is not set.  Set it to your clone of https://github.com/codekansas/insurance_qa_python")
+        print("INSURANCE_QA is not set.  Set it to your clone of https://github.com/codekansas/insurance_qa_python")
         sys.exit(1)
         
     vocab = load(data_path, 'vocab')
