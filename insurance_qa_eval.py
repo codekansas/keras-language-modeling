@@ -264,7 +264,7 @@ if __name__ == '__main__':
     # np.save(open('models/embedding_200_dim.h5', 'wb'), weights)
 
     # load pre-trained embedding layer
-    weights = np.load('word2vec_100_dim.h5')
+    weights = np.load('word2vec_100_dim.embeddings')
     language_model = model.prediction_model.layers[2]
     language_model.layers[2].set_weights([weights])
 
