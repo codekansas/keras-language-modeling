@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import os
+import sys
 import random
 from time import strftime, gmtime
 
@@ -198,7 +199,11 @@ class Evaluator:
         return top1s, mrrs
 
 if __name__ == '__main__':
-    data_path = '/media/moloch/HHD/MachineLearning/data/insuranceQA/pyenc'
+    try:
+        data_path = os.environ['DATA_PATH'] 
+    except KeyError:
+        print("DATA_PATH is not set.  Set it to your clone of https://github.com/codekansas/insurance_qa_python")
+        sys.exit(1)
 
     conf = {
         'question_len': 20,
