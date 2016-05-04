@@ -26,9 +26,12 @@ class AttentionLSTM(LSTM):
                                    name='{}_U_m'.format(self.name))
         self.b_m = K.zeros((self.output_dim,), name='{}_b_m'.format(self.name))
 
-        self.U_s = self.inner_init((self.output_dim, self.output_dim),
+        # self.U_s = self.inner_init((self.output_dim, self.output_dim),
+        #                            name='{}_U_s'.format(self.name))
+        # self.b_s = K.zeros((self.output_dim,), name='{}_b_s'.format(self.name))
+        self.U_s = self.inner_init((self.output_dim, 1),
                                    name='{}_U_s'.format(self.name))
-        self.b_s = K.zeros((self.output_dim,), name='{}_b_s'.format(self.name))
+        self.b_s = K.zeros((1,), name='{}_b_s'.format(self.name))
 
         self.trainable_weights += [self.U_a, self.U_m, self.U_s, self.b_a, self.b_m, self.b_s]
 
@@ -43,9 +46,10 @@ class AttentionLSTM(LSTM):
         m = K.tanh(K.dot(h, self.U_a) * attention + self.b_a)
         # Intuitively it makes more sense to use a sigmoid (was getting some NaN problems
         # which I think might have been caused by the exponential function -> gradients blow up)
-        s = K.exp(K.dot(m, self.U_s) + self.b_s)
-        # s = K.sigmoid(K.dot(m, self.U_s) + self.b_s)
-        h = h * s
+        # s = K.exp(K.dot(m, self.U_s) + self.b_s)
+        s = K.tanh(K.dot(m, self.U_s) + self.b_s)
+        h = h * K.repeat_elements(s, self.output_dim, axis=1)
+        # h = h * s
 
         return h, [h, c]
 

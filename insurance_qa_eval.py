@@ -6,7 +6,7 @@ from time import strftime, gmtime
 
 import pickle
 
-from keras.optimizers import Adam
+from keras.optimizers import Adam, RMSprop
 from scipy.stats import rankdata
 
 from keras_models import *
@@ -98,6 +98,7 @@ class Evaluator:
 
         questions = self.padq(questions)
         good_answers = self.pada(good_answers)
+        # bad_answers = self.pada(random.sample(self.answers.values(), len(good_answers)))
 
         for i in range(nb_epoch):
             # bad_answers = np.roll(good_answers, random.randint(10, len(questions) - 10))
@@ -204,7 +205,7 @@ if __name__ == '__main__':
         'question_len': 20,
         'answer_len': 100,
         'n_words': 22353, # len(vocabulary) + 1
-        'margin': 0.009,
+        'margin': 0.02,
 
         'training_params': {
             'save_every': 1,
@@ -212,12 +213,12 @@ if __name__ == '__main__':
             'batch_size': 128,
             'nb_epoch': 1000,
             'validation_split': 0.2,
-            'optimizer': 'adam',
+            'optimizer': RMSprop(clip_norm=0.1), # Adam(clip_norm=0.1),
             'n_eval': 20,
 
             'evaluate_all_threshold': {
                 'mode': 'all',
-                'top1': 0.55,
+                'top1': 0.5,
             },
         },
 
@@ -264,8 +265,8 @@ if __name__ == '__main__':
 
     # train the model
     # evaluator.load_epoch(model, 25)
-    # evaluator.train(model)
+    evaluator.train(model)
 
     # evaluate mrr for a particular epoch
-    evaluator.load_epoch(model, 115)
-    evaluator.get_mrr(model, evaluate_all=True)
+    # evaluator.load_epoch(model, 53)
+    # evaluator.get_mrr(model, evaluate_all=True)

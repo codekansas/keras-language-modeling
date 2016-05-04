@@ -259,6 +259,10 @@ class AttentionModel(LanguageModel):
         question_rnn = merge([f_rnn(question_dropout), b_rnn(question_dropout)], mode='concat', concat_axis=-1)
         question_dropout = dropout(question_rnn)
 
+        # regularize
+        regularize = ActivityRegularization(l2=0.0001)
+        question_dropout = regularize(question_dropout)
+
         # could add convolution layer here (as in paper)
 
         # maxpooling
@@ -272,6 +276,7 @@ class AttentionModel(LanguageModel):
         # b_rnn = LSTM(self.model_params.get('n_lstm_dims', 141), return_sequences=True, go_backwards=True)
         answer_rnn = merge([f_rnn(answer_dropout), b_rnn(answer_dropout)], mode='concat', concat_axis=-1)
         answer_dropout = dropout(answer_rnn)
+        answer_dropout = regularize(answer_dropout)
         answer_pool = maxpool(answer_dropout)
 
         # activation
