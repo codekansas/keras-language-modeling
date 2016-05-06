@@ -45,8 +45,9 @@ class InsuranceQA:
                 indices[i, self.words_indices[w]] = 1
             return indices
 
-        def decode(self, indices, calc_argmax=True):
+        def decode(self, indices, calc_argmax=True, noise=0):
             if calc_argmax:
+                indices = indices + np.random.rand(*indices.shape) * noise
                 indices = indices.argmax(axis=-1)
             return ' '.join(self.indices_words[x] for x in indices)
 
@@ -54,12 +55,11 @@ def get_model(question_maxlen, answer_maxlen, vocab_len, n_hidden):
     answer = Input(shape=(answer_maxlen, vocab_len))
     # answer = Masking(mask_value=0.)(answer)
 
+    # for i in range(2):
+    #     answer = LSTM(n_hidden, return_sequences=True)(answer)
+
     # encoder rnn
     encode_rnn = LSTM(n_hidden, return_sequences=False)(answer)
-
-    # can add more layers
-    for i in range(2):
-        encode_rnn = LSTM(n_hidden, return_sequences=True)(encode_rnn)
 
     # repeat it maxlen times
     repeat_encoding = RepeatVector(question_maxlen)(encode_rnn)
@@ -125,6 +125,8 @@ if __name__ == '__main__':
         x, y = next(test_gen)
         y = y[0]
         pred = model.predict(x, verbose=0)
-        for i in range(n_test):
-            print('Expected: {}'.format(qa.table.decode(y[i])))
-            print('Predicted: {}'.format(qa.table.decode(pred[i])))
+        for noise in [0, 0.1, 0.2]: # not sure what noise values would be good
+            print(' Noise: {}'.format(noise))
+            for i in range(n_test):
+                print('    Expected: {}'.format(qa.table.decode(y[i])))
+                print('    Predicted: {}'.format(qa.table.decode(pred[i], noise=noise)))
