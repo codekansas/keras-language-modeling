@@ -1,23 +1,30 @@
 from __future__ import print_function
 
 import os
+# can remove this depending on ide...
+os.environ['INSURANCE_QA'] = '/media/moloch/HHD/MachineLearning/data/insuranceQA/pyenc'
+
 import sys
 import random
 from time import strftime, gmtime
 
 import pickle
 
-from keras.optimizers import Adam, RMSprop
+from keras.optimizers import RMSprop
 from scipy.stats import rankdata
 
 from keras_models import *
 
 random.seed(42)
 
-
 class Evaluator:
-    def __init__(self, path, conf=None):
-        self.path = path
+    def __init__(self, conf=None):
+        try:
+            data_path = os.environ['INSURANCE_QA']
+        except KeyError:
+            print("INSURANCE_QA is not set.  Set it to your clone of https://github.com/codekansas/insurance_qa_python")
+            sys.exit(1)
+        self.path = data_path
         self.conf = dict() if conf is None else conf
         self.params = conf.get('training_params', dict())
         self.answers = self.load('answers')
@@ -106,6 +113,11 @@ class Evaluator:
             # bad_answers = good_answers.copy()
             # random.shuffle(bad_answers)
             bad_answers = self.pada(random.sample(self.answers.values(), len(good_answers)))
+
+            # shuffle questions
+            zipped = zip(questions, good_answers)
+            random.shuffle(zipped)
+            questions[:], good_answers[:] = zip(*zipped)
 
             print('Epoch %d :: ' % (i+1), end='')
             self.print_time()
@@ -200,30 +212,24 @@ class Evaluator:
         return top1s, mrrs
 
 if __name__ == '__main__':
-    try:
-        data_path = os.environ['INSURANCE_QA']
-    except KeyError:
-        print("INSURANCE_QA is not set.  Set it to your clone of https://github.com/codekansas/insurance_qa_python")
-        sys.exit(1)
-
     conf = {
-        'question_len': 20,
-        'answer_len': 100,
+        'question_len': 30,
+        'answer_len': 150,
         'n_words': 22353, # len(vocabulary) + 1
-        'margin': 0.02,
+        'margin': 0.2,
 
         'training_params': {
             'save_every': 1,
             'eval_every': 1,
             'batch_size': 128,
             'nb_epoch': 1000,
-            'validation_split': 0.2,
+            'validation_split': 0.1,
             'optimizer': RMSprop(clip_norm=0.1), # Adam(clip_norm=0.1),
             'n_eval': 20,
 
             'evaluate_all_threshold': {
                 'mode': 'all',
-                'top1': 0.5,
+                'top1': 0.4,
             },
         },
 
@@ -247,7 +253,7 @@ if __name__ == '__main__':
         }
     }
 
-    evaluator = Evaluator(data_path, conf)
+    evaluator = Evaluator(conf)
 
     ##### Define model ######
     model = AttentionModel(conf)
@@ -269,7 +275,7 @@ if __name__ == '__main__':
     language_model.layers[2].set_weights([weights])
 
     # train the model
-    # evaluator.load_epoch(model, 25)
+    # evaluator.load_epoch(model, 225)
     evaluator.train(model)
 
     # evaluate mrr for a particular epoch
