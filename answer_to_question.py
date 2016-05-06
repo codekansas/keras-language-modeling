@@ -55,21 +55,18 @@ def get_model(question_maxlen, answer_maxlen, vocab_len, n_hidden):
     answer = Input(shape=(answer_maxlen, vocab_len))
     # answer = Masking(mask_value=0.)(answer)
 
-    # for i in range(2):
-    #     answer = LSTM(n_hidden, return_sequences=True)(answer)
-
     # encoder rnn
-    encode_rnn = LSTM(n_hidden, return_sequences=False)(answer)
+    encode_rnn = LSTM(n_hidden, return_sequences=True)(answer)
+    encode_rnn = LSTM(n_hidden, return_sequences=True)(encode_rnn)
+    encode_rnn = LSTM(n_hidden, return_sequences=False)(encode_rnn)
 
     # repeat it maxlen times
     repeat_encoding = RepeatVector(question_maxlen)(encode_rnn)
 
     # decoder rnn
     decode_rnn = LSTM(n_hidden, return_sequences=True)(repeat_encoding)
-
-    # can add more layers
-    for i in range(2):
-        decode_rnn = LSTM(n_hidden, return_sequences=True)(decode_rnn)
+    decode_rnn = LSTM(n_hidden, return_sequences=True)(decode_rnn)
+    decode_rnn = LSTM(n_hidden, return_sequences=True)(decode_rnn)
 
     # output
     dense = TimeDistributed(Dense(vocab_len))(decode_rnn)
@@ -86,7 +83,7 @@ if __name__ == '__main__':
 
     qa = InsuranceQA()
     batch_size = 50
-    n_test = 10
+    n_test = 5
 
     print('Generating data...')
     answers = qa.load('answers')
