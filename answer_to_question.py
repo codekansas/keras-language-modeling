@@ -3,7 +3,7 @@ import numpy as np
 
 import os
 from keras.engine import Input
-from keras.layers import LSTM, RepeatVector, TimeDistributed, Dense, Activation
+from keras.layers import LSTM, RepeatVector, TimeDistributed, Dense, Activation, Masking, merge
 from keras.models import Model
 
 # can remove this depending on ide...
@@ -53,12 +53,14 @@ class InsuranceQA:
 
 def get_model(question_maxlen, answer_maxlen, vocab_len, n_hidden):
     answer = Input(shape=(answer_maxlen, vocab_len))
-    # answer = Masking(mask_value=0.)(answer)
+    masked = Masking(mask_value=0.)(answer)
 
     # encoder rnn
-    encode_rnn = LSTM(n_hidden, return_sequences=True)(answer)
-    encode_rnn = LSTM(n_hidden, return_sequences=True)(encode_rnn)
+    encode_rnn = LSTM(n_hidden, return_sequences=True)(masked)
     encode_rnn = LSTM(n_hidden, return_sequences=False)(encode_rnn)
+
+    encode_brnn = LSTM(n_hidden, return_sequences=True, go_backwards=True)(masked)
+    encode_brnn = LSTM(n_hidden, return_sequences=False, go_backwards=True)(encode_brnn)
 
     # repeat it maxlen times
     repeat_encoding = RepeatVector(question_maxlen)(encode_rnn)
@@ -66,10 +68,14 @@ def get_model(question_maxlen, answer_maxlen, vocab_len, n_hidden):
     # decoder rnn
     decode_rnn = LSTM(n_hidden, return_sequences=True)(repeat_encoding)
     decode_rnn = LSTM(n_hidden, return_sequences=True)(decode_rnn)
-    decode_rnn = LSTM(n_hidden, return_sequences=True)(decode_rnn)
+
+    decode_brnn = LSTM(n_hidden, return_sequences=True, go_backwards=True)(repeat_encoding)
+    decode_brnn = LSTM(n_hidden, return_sequences=True, go_backwards=True)(decode_brnn)
+
+    merged_output = merge([decode_rnn, decode_brnn], mode='concat', concat_axis=-1)
 
     # output
-    dense = TimeDistributed(Dense(vocab_len))(decode_rnn)
+    dense = TimeDistributed(Dense(vocab_len))(merged_output)
     softmax = Activation('softmax')(dense)
 
     # compile the model
