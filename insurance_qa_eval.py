@@ -253,7 +253,7 @@ if __name__ == '__main__':
             'conv_activation': 'relu',
 
             # recurrent
-            'n_lstm_dims': 141,
+            'n_lstm_dims': 141, # * 2
 
             'initial_embed_weights': np.load('word2vec_100_dim.embeddings'),
         },
@@ -269,7 +269,7 @@ if __name__ == '__main__':
     evaluator = Evaluator(conf)
 
     ##### Define model ######
-    model = ConvolutionModel(conf)
+    model = AttentionModel(conf)
     optimizer = conf.get('training_params', dict()).get('optimizer', 'adam')
     model.compile(optimizer=optimizer)
 
@@ -288,5 +288,5 @@ if __name__ == '__main__':
     evaluator.train(model)
 
     # evaluate mrr for a particular epoch
-    # evaluator.load_epoch(model, 22)
+    # evaluator.load_epoch(model, 32)
     # evaluator.get_mrr(model, evaluate_all=True)

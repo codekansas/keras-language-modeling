@@ -257,8 +257,8 @@ class AttentionModel(LanguageModel):
         answer_embedding = embedding(answer)
 
         # turn off layer updating
-        embedding.params = []
-        embedding.updates = []
+        # embedding.params = []
+        # embedding.updates = []
 
         # dropout
         dropout = Dropout(0.25)

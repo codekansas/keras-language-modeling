@@ -13,12 +13,12 @@ Embedding + Max Pooling:
 Dense + CNN + Max Pooling:
  - Top 1 precision:
    - 0.507 on test 1
-   - 0.427 on test 2
-   - 0.470 on dev
+   - 0.458 on test 2
+   - 0.515 on dev
  - MRR:
    - 0.635 on test 1
-   - 0.557 on test 2
-   - 0.596 on dev
+   - 0.593 on test 2
+   - 0.642 on dev
 
 Attentional LSTM + Max Pooling:
  - Top 1 precision:
