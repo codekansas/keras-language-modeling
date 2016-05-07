@@ -1,10 +1,18 @@
+'''
+The training model learns to generate a "question" which contains all the same
+words as the original question. So it isn't really learning a sequence, but the
+result is interesting.
+'''
+
 from __future__ import print_function
 import numpy as np
 
 import os
 from keras.engine import Input
-from keras.layers import LSTM, RepeatVector, TimeDistributed, Dense, Activation, Masking, merge
+from keras.layers import LSTM, RepeatVector, TimeDistributed, Dense, Activation, Masking, merge, activations, Lambda, \
+    ActivityRegularization
 from keras.models import Model
+import keras.backend as K
 
 # can remove this depending on ide...
 os.environ['INSURANCE_QA'] = '/media/moloch/HHD/MachineLearning/data/insuranceQA/pyenc'
@@ -45,47 +53,54 @@ class InsuranceQA:
                 indices[i, self.words_indices[w]] = 1
             return indices
 
-        def decode(self, indices, calc_argmax=True, noise=0):
+        def decode(self, indices, calc_argmax=True, noise=0.2):
             if calc_argmax:
-                indices = indices + np.random.rand(*indices.shape) * noise
-                indices = indices.argmax(axis=-1)
+                indices = [self.sample(i, noise=noise) for i in indices]
             return ' '.join(self.indices_words[x] for x in indices)
+
+        def sample(self, index, noise=0.2):
+            index = np.log(index) / noise
+            index = np.exp(index) / np.sum(np.exp(index))
+            index = np.argmax(np.random.multinomial(1, index, 1))
+            return index
 
 def get_model(question_maxlen, answer_maxlen, vocab_len, n_hidden):
     answer = Input(shape=(answer_maxlen, vocab_len))
     masked = Masking(mask_value=0.)(answer)
 
     # encoder rnn
-    encode_rnn = LSTM(n_hidden, return_sequences=True)(masked)
-    encode_rnn = LSTM(n_hidden, return_sequences=False)(encode_rnn)
+    encode_rnn = LSTM(n_hidden, return_sequences=True, dropout_U=0.2)(masked)
+    encode_rnn = LSTM(n_hidden, return_sequences=False, dropout_U=0.2)(encode_rnn)
 
-    encode_brnn = LSTM(n_hidden, return_sequences=True, go_backwards=True)(masked)
-    encode_brnn = LSTM(n_hidden, return_sequences=False, go_backwards=True)(encode_brnn)
+    encode_brnn = LSTM(n_hidden, return_sequences=True, go_backwards=True, dropout_U=0.2)(masked)
+    encode_brnn = LSTM(n_hidden, return_sequences=False, go_backwards=True, dropout_U=0.2)(encode_brnn)
 
     # repeat it maxlen times
-    repeat_encoding = RepeatVector(question_maxlen)(encode_rnn)
+    repeat_encoding_rnn = RepeatVector(question_maxlen)(encode_rnn)
+    repeat_encoding_brnn = RepeatVector(question_maxlen)(encode_brnn)
 
     # decoder rnn
-    decode_rnn = LSTM(n_hidden, return_sequences=True)(repeat_encoding)
-    decode_rnn = LSTM(n_hidden, return_sequences=True)(decode_rnn)
+    decode_rnn = LSTM(n_hidden, return_sequences=True, dropout_U=0.2, dropout_W=0.5)(repeat_encoding_rnn)
+    decode_rnn = LSTM(n_hidden, return_sequences=True, dropout_U=0.2)(decode_rnn)
 
-    decode_brnn = LSTM(n_hidden, return_sequences=True, go_backwards=True)(repeat_encoding)
-    decode_brnn = LSTM(n_hidden, return_sequences=True, go_backwards=True)(decode_brnn)
+    decode_brnn = LSTM(n_hidden, return_sequences=True, go_backwards=True, dropout_U=0.2, dropout_W=0.5)(repeat_encoding_brnn)
+    decode_brnn = LSTM(n_hidden, return_sequences=True, go_backwards=True, dropout_U=0.2)(decode_brnn)
 
     merged_output = merge([decode_rnn, decode_brnn], mode='concat', concat_axis=-1)
 
     # output
     dense = TimeDistributed(Dense(vocab_len))(merged_output)
-    softmax = Activation('softmax')(dense)
+    regularized = ActivityRegularization(l2=1)(dense)
+    softmax = Activation('softmax')(regularized)
 
-    # compile the model
+    # compile the prediction model
     model = Model([answer], [softmax])
     model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
     return model
 
 if __name__ == '__main__':
-    question_maxlen, answer_maxlen = 10, 40
+    question_maxlen, answer_maxlen = 20, 60
 
     qa = InsuranceQA()
     batch_size = 50
@@ -93,30 +108,37 @@ if __name__ == '__main__':
 
     print('Generating data...')
     answers = qa.load('answers')
-    questions = qa.load('train')
 
-    def gen_questions(batch_size):
+    def gen_questions(batch_size, test=False):
+        if test:
+            questions = qa.load('test1')
+        else:
+            questions = qa.load('train')
         while True:
             i = 0
             question_idx = np.zeros(shape=(batch_size, question_maxlen, len(qa.vocab)))
             answer_idx = np.zeros(shape=(batch_size, answer_maxlen, len(qa.vocab)))
             for s in questions:
-                a = s['answers'][0]
-                answer = qa.table.encode([qa.vocab[x] for x in answers[a]], answer_maxlen)
-                question = qa.table.encode([qa.vocab[x] for x in s['question']], question_maxlen)
-                answer_idx[i] = answer
-                question_idx[i] = question
-                i += 1
-                if i == batch_size:
-                    yield ([answer_idx], [question_idx])
-                    i = 0
+                if test:
+                    ans = s['good']
+                else:
+                    ans = s['answers']
+                for a in ans:
+                    answer = qa.table.encode([qa.vocab[x] for x in answers[a]], answer_maxlen)
+                    question = qa.table.encode([qa.vocab[x] for x in s['question']], question_maxlen)
+                    question = np.amax(question, axis=0, keepdims=False)
+                    answer_idx[i] = answer
+                    question_idx[i] = question
+                    i += 1
+                    if i == batch_size:
+                        yield ([answer_idx], [question_idx])
+                        i = 0
 
     gen = gen_questions(batch_size)
-    test_gen = gen_questions(n_test)
+    test_gen = gen_questions(n_test, test=True)
 
     print('Generating model...')
-    model = get_model(question_maxlen=question_maxlen, answer_maxlen=answer_maxlen,
-                      vocab_len=len(qa.vocab), n_hidden=128)
+    model = get_model(question_maxlen=question_maxlen, answer_maxlen=answer_maxlen, vocab_len=len(qa.vocab), n_hidden=128)
 
     print('Training model...')
     for iteration in range(1, 200):
@@ -128,7 +150,7 @@ if __name__ == '__main__':
         x, y = next(test_gen)
         y = y[0]
         pred = model.predict(x, verbose=0)
-        for noise in [0, 0.1, 0.2]: # not sure what noise values would be good
+        for noise in [0.2, 0.5, 1.0, 1.2]: # not sure what noise values would be good
             print(' Noise: {}'.format(noise))
             for i in range(n_test):
                 print('    Expected: {}'.format(qa.table.decode(y[i])))

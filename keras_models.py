@@ -129,7 +129,7 @@ class LanguageModel:
     def fit(self, x, **kwargs):
         assert self.training_model is not None, 'Must compile the model before fitting data'
         y = np.zeros(shape=x[0].shape[:1])
-        self.training_model.fit(x, y, **kwargs)
+        return self.training_model.fit(x, y, **kwargs)
 
     def predict(self, x, **kwargs):
         return self.prediction_model.predict(x, **kwargs)
@@ -149,7 +149,12 @@ class EmbeddingModel(LanguageModel):
         answer = self.get_answer()
 
         # add embedding layers
-        embedding = Embedding(self.config['n_words'], self.model_params.get('n_embed_dims', 141))
+        weights = self.model_params.get('initial_embed_weights', None)
+        weights = weights if weights is None else [weights]
+        embedding = Embedding(input_dim=self.config['n_words'],
+                              output_dim=self.model_params.get('n_embed_dims', 100),
+                              weights=weights,
+                              mask_zero=True)
         question_embedding = embedding(question)
         answer_embedding = embedding(answer)
 
@@ -172,6 +177,8 @@ class EmbeddingModel(LanguageModel):
 
 
 class ConvolutionModel(LanguageModel):
+    ### Validation loss at Epoch 65: 2.4e-6
+
     def build(self):
         assert self.config['question_len'] == self.config['answer_len']
 
@@ -179,13 +186,17 @@ class ConvolutionModel(LanguageModel):
         answer = self.get_answer()
 
         # add embedding layers
-        embedding = Embedding(self.config['n_words'], self.model_params.get('n_embed_dims', 100))
+        weights = self.model_params.get('initial_embed_weights', None)
+        weights = weights if weights is None else [weights]
+        embedding = Embedding(input_dim=self.config['n_words'],
+                              output_dim=self.model_params.get('n_embed_dims', 100),
+                              weights=weights)
         question_embedding = embedding(question)
         answer_embedding = embedding(answer)
 
         # turn off layer updating
-        embedding.params = []
-        embedding.updates = []
+        # embedding.params = []
+        # embedding.updates = []
 
         # dropout
         dropout = Dropout(0.25)
@@ -213,10 +224,6 @@ class ConvolutionModel(LanguageModel):
         question_cnn = merge([cnn(question_dropout) for cnn in cnns], mode='concat')
         answer_cnn = merge([cnn(answer_dropout) for cnn in cnns], mode='concat')
 
-        # regularization
-        question_cnn = ActivityRegularization(l2=0.0001)(question_cnn)
-        answer_cnn = ActivityRegularization(l2=0.0001)(answer_cnn)
-
         # dropout
         question_dropout = dropout(question_cnn)
         answer_dropout = dropout(answer_cnn)
@@ -240,7 +247,12 @@ class AttentionModel(LanguageModel):
         answer = self.get_answer()
 
         # add embedding layers
-        embedding = Embedding(self.config['n_words'], self.model_params.get('n_embed_dims', 100), mask_zero=False)
+        weights = self.model_params.get('initial_embed_weights', None)
+        weights = weights if weights is None else [weights]
+        embedding = Embedding(input_dim=self.config['n_words'],
+                              output_dim=self.model_params.get('n_embed_dims', 100),
+                              weights=weights,
+                              mask_zero=True)
         question_embedding = embedding(question)
         answer_embedding = embedding(answer)
 
@@ -254,8 +266,9 @@ class AttentionModel(LanguageModel):
         answer_dropout = dropout(answer_embedding)
 
         # question rnn part
-        f_rnn = LSTM(self.model_params.get('n_lstm_dims', 141), return_sequences=True)
-        b_rnn = LSTM(self.model_params.get('n_lstm_dims', 141), return_sequences=True, go_backwards=True)
+        f_rnn = LSTM(self.model_params.get('n_lstm_dims', 141), return_sequences=True, consume_less='mem')
+        b_rnn = LSTM(self.model_params.get('n_lstm_dims', 141), return_sequences=True, consume_less='mem',
+                     go_backwards=True)
         question_f_rnn = f_rnn(question_dropout)
         question_b_rnn = b_rnn(question_dropout)
         question_f_dropout = dropout(question_f_rnn)
@@ -266,8 +279,10 @@ class AttentionModel(LanguageModel):
         question_pool = merge([maxpool(question_f_dropout), maxpool(question_b_dropout)], mode='concat', concat_axis=-1)
 
         # answer rnn part
-        f_rnn = AttentionLSTM(self.model_params.get('n_lstm_dims', 141), question_pool, single_attn=True, return_sequences=True)
-        b_rnn = AttentionLSTM(self.model_params.get('n_lstm_dims', 141), question_pool, single_attn=True, return_sequences=True, go_backwards=True)
+        f_rnn = AttentionLSTM(self.model_params.get('n_lstm_dims', 141), question_pool, single_attn=True,
+                              return_sequences=True, consume_less='mem')
+        b_rnn = AttentionLSTM(self.model_params.get('n_lstm_dims', 141), question_pool, single_attn=True,
+                              return_sequences=True, consume_less='mem', go_backwards=True)
         answer_f_rnn = f_rnn(answer_dropout)
         answer_b_rnn = b_rnn(answer_dropout)
         answer_f_dropout = dropout(answer_f_rnn)

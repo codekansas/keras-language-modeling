@@ -10,7 +10,7 @@ from time import strftime, gmtime
 
 import pickle
 
-from keras.optimizers import RMSprop
+from keras.optimizers import RMSprop, Adam
 from scipy.stats import rankdata
 
 from keras_models import *
@@ -108,26 +108,32 @@ class Evaluator:
         good_answers = self.pada(good_answers)
         # bad_answers = self.pada(random.sample(self.answers.values(), len(good_answers)))
 
-        for i in range(nb_epoch):
+        val_loss = {'loss': 1., 'epoch': 0}
+
+        for i in range(1, nb_epoch):
             # bad_answers = np.roll(good_answers, random.randint(10, len(questions) - 10))
             # bad_answers = good_answers.copy()
             # random.shuffle(bad_answers)
             bad_answers = self.pada(random.sample(self.answers.values(), len(good_answers)))
 
             # shuffle questions
-            zipped = zip(questions, good_answers)
-            random.shuffle(zipped)
-            questions[:], good_answers[:] = zip(*zipped)
+            # zipped = zip(questions, good_answers)
+            # random.shuffle(zipped)
+            # questions[:], good_answers[:] = zip(*zipped)
 
-            print('Epoch %d :: ' % (i+1), end='')
+            print('Epoch %d :: ' % i, end='')
             self.print_time()
-            model.fit([questions, good_answers, bad_answers], nb_epoch=1, batch_size=batch_size, validation_split=split)
+            hist = model.fit([questions, good_answers, bad_answers], nb_epoch=1, batch_size=batch_size, validation_split=split)
 
-            if eval_every is not None and (i+1) % eval_every == 0:
+            if hist.history['val_loss'][0] < val_loss['loss']:
+                val_loss = {'loss': hist.history['val_loss'][0], 'epoch': i}
+            print('Best: Loss = {}, Epoch = {}'.format(val_loss['loss'], val_loss['epoch']))
+
+            if eval_every is not None and i % eval_every == 0:
                 self.get_mrr(model)
 
-            if save_every is not None and (i+1) % save_every == 0:
-                self.save_epoch(model, (i+1))
+            if save_every is not None and i % save_every == 0:
+                self.save_epoch(model, i)
 
     ##### Evaluation #####
 
@@ -160,13 +166,13 @@ class Evaluator:
 
             c_1, c_2 = 0, 0
 
-            c = 0
             for i, d in enumerate(data):
                 if evaluate_all:
                     self.prog_bar(i, len(data))
 
-                answers = self.pada([self.answers[i] for i in d['good'] + d['bad']])
-                question = self.padq([d['question']] * len(d['good'] + d['bad']))
+                indices = d['good'] + d['bad']
+                answers = self.pada([self.answers[i] for i in indices])
+                question = self.padq([d['question']] * len(indices))
 
                 n_good = len(d['good'])
                 sims = model.predict([question, answers], batch_size=500).flatten()
@@ -174,6 +180,10 @@ class Evaluator:
 
                 max_r = np.argmax(r)
                 max_n = np.argmax(r[:n_good])
+
+                # print(' '.join(self.revert(d['question'])))
+                # print(' '.join(self.revert(self.answers[indices[max_r]])))
+                # print(' '.join(self.revert(self.answers[indices[max_n]])))
 
                 c_1 += 1 if max_r == max_n else 0
                 c_2 += 1 / float(r[max_r] - r[max_n] + 1)
@@ -204,7 +214,7 @@ class Evaluator:
                 evaluate_all = evaluate_all or any([x >= mrr_theshold for x in mrrs])
             else:
                 evaluate_all = evaluate_all or all([x >= top1_threshold for x in top1s])
-                evaluate_all = evaluate_all and all([x >= mrr_theshold for x in mrrs])
+                evaluate_all = evaluate_all or all([x >= mrr_theshold for x in mrrs])
 
             if evaluate_all:
                 return self.get_mrr(model, evaluate_all=True)
@@ -213,19 +223,20 @@ class Evaluator:
 
 if __name__ == '__main__':
     conf = {
-        'question_len': 30,
-        'answer_len': 150,
+        'question_len': 100,
+        'answer_len': 100,
         'n_words': 22353, # len(vocabulary) + 1
-        'margin': 0.2,
+        'margin': 0.009,
 
         'training_params': {
             'save_every': 1,
-            'eval_every': 1,
+            # 'eval_every': 1,
             'batch_size': 128,
             'nb_epoch': 1000,
-            'validation_split': 0.1,
-            'optimizer': RMSprop(clip_norm=0.1), # Adam(clip_norm=0.1),
-            'n_eval': 20,
+            'validation_split': 0.2,
+            'optimizer': 'adam',
+            # 'optimizer': Adam(clip_norm=0.1),
+            # 'n_eval': 100,
 
             'evaluate_all_threshold': {
                 'mode': 'all',
@@ -238,15 +249,17 @@ if __name__ == '__main__':
             'n_hidden': 200,
 
             # convolution
-            'nb_filters': 1000,
+            'nb_filters': 1000, # * 4
             'conv_activation': 'relu',
 
             # recurrent
             'n_lstm_dims': 141,
+
+            'initial_embed_weights': np.load('word2vec_100_dim.embeddings'),
         },
 
         'similarity_params': {
-            'mode': 'gesd',
+            'mode': 'cosine',
             'gamma': 1,
             'c': 1,
             'd': 2,
@@ -256,28 +269,24 @@ if __name__ == '__main__':
     evaluator = Evaluator(conf)
 
     ##### Define model ######
-    model = AttentionModel(conf)
+    model = ConvolutionModel(conf)
     optimizer = conf.get('training_params', dict()).get('optimizer', 'adam')
     model.compile(optimizer=optimizer)
 
     import numpy as np
 
     # save embedding layer
+    # evaluator.load_epoch(model, 33)
     # embedding_layer = model.prediction_model.layers[2].layers[2]
     # evaluator.load_epoch(model, 100)
     # evaluator.train(model)
     # weights = embedding_layer.get_weights()[0]
-    # np.save(open('models/embedding_200_dim.h5', 'wb'), weights)
-
-    # load pre-trained embedding layer
-    weights = np.load('word2vec_100_dim.embeddings')
-    language_model = model.prediction_model.layers[2]
-    language_model.layers[2].set_weights([weights])
+    # np.save(open('models/embedding_1000_dim.h5', 'wb'), weights)
 
     # train the model
-    # evaluator.load_epoch(model, 225)
+    # evaluator.load_epoch(model, 6)
     evaluator.train(model)
 
     # evaluate mrr for a particular epoch
-    # evaluator.load_epoch(model, 53)
+    # evaluator.load_epoch(model, 22)
     # evaluator.get_mrr(model, evaluate_all=True)
