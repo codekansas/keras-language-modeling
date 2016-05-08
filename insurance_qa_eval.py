@@ -223,10 +223,10 @@ class Evaluator:
 
 if __name__ == '__main__':
     conf = {
-        'question_len': 100,
-        'answer_len': 100,
+        'question_len': 30,
+        'answer_len': 200,
         'n_words': 22353, # len(vocabulary) + 1
-        'margin': 0.009,
+        'margin': 0.05,
 
         'training_params': {
             'save_every': 1,
@@ -259,7 +259,7 @@ if __name__ == '__main__':
         },
 
         'similarity_params': {
-            'mode': 'cosine',
+            'mode': 'gesd',
             'gamma': 1,
             'c': 1,
             'd': 2,
@@ -284,9 +284,9 @@ if __name__ == '__main__':
     # np.save(open('models/embedding_1000_dim.h5', 'wb'), weights)
 
     # train the model
-    # evaluator.load_epoch(model, 6)
+    # evaluator.load_epoch(model, 54)
     evaluator.train(model)
 
     # evaluate mrr for a particular epoch
-    # evaluator.load_epoch(model, 32)
+    # evaluator.load_epoch(model, 54)
     # evaluator.get_mrr(model, evaluate_all=True)

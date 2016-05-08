@@ -153,5 +153,6 @@ if __name__ == '__main__':
         for noise in [0.2, 0.5, 1.0, 1.2]: # not sure what noise values would be good
             print(' Noise: {}'.format(noise))
             for i in range(n_test):
+                print('    Answer: {}'.format(qa.table.decode(x[0][i])))
                 print('    Expected: {}'.format(qa.table.decode(y[i])))
                 print('    Predicted: {}'.format(qa.table.decode(pred[i], noise=noise)))

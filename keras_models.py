@@ -266,8 +266,8 @@ class AttentionModel(LanguageModel):
         answer_dropout = dropout(answer_embedding)
 
         # question rnn part
-        f_rnn = LSTM(self.model_params.get('n_lstm_dims', 141), return_sequences=True, consume_less='mem')
-        b_rnn = LSTM(self.model_params.get('n_lstm_dims', 141), return_sequences=True, consume_less='mem',
+        f_rnn = LSTM(self.model_params.get('n_lstm_dims', 141), return_sequences=True, dropout_U=0.2, consume_less='mem')
+        b_rnn = LSTM(self.model_params.get('n_lstm_dims', 141), return_sequences=True, dropout_U=0.2, consume_less='mem',
                      go_backwards=True)
         question_f_rnn = f_rnn(question_dropout)
         question_b_rnn = b_rnn(question_dropout)
@@ -279,9 +279,9 @@ class AttentionModel(LanguageModel):
         question_pool = merge([maxpool(question_f_dropout), maxpool(question_b_dropout)], mode='concat', concat_axis=-1)
 
         # answer rnn part
-        f_rnn = AttentionLSTM(self.model_params.get('n_lstm_dims', 141), question_pool, single_attn=True,
+        f_rnn = AttentionLSTM(self.model_params.get('n_lstm_dims', 141), question_pool, single_attn=True, dropout_U=0.2,
                               return_sequences=True, consume_less='mem')
-        b_rnn = AttentionLSTM(self.model_params.get('n_lstm_dims', 141), question_pool, single_attn=True,
+        b_rnn = AttentionLSTM(self.model_params.get('n_lstm_dims', 141), question_pool, single_attn=True, dropout_U=0.2,
                               return_sequences=True, consume_less='mem', go_backwards=True)
         answer_f_rnn = f_rnn(answer_dropout)
         answer_b_rnn = b_rnn(answer_dropout)
