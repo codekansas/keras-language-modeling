@@ -1,7 +1,6 @@
 '''
-The training model learns to generate a "question" which contains all the same
-words as the original question. So it isn't really learning a sequence, but the
-result is interesting.
+Model for sequence to sequence learning. The model learns to generate a question given an answer,
+and generalizes to other questions and answers.
 '''
 
 from __future__ import print_function
