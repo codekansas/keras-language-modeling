@@ -24,6 +24,8 @@ try:
 except:
     import pickle
 
+model_save = 'models/answer_to_question.h5'
+
 
 class InsuranceQA:
     def __init__(self):
@@ -53,9 +55,10 @@ class InsuranceQA:
                 indices[i, self.words_indices[w]] = 1
             return indices
 
-        def decode(self, indices, calc_argmax=True, noise=0.2):
+        def decode(self, indices, calc_argmax=True):
             if calc_argmax:
-                indices = [self.sample(i, noise=noise) for i in indices]
+                indices = np.argmax(indices, axis=-1)
+                # indices = [self.sample(i) for i in indices]
             return ' '.join(self.indices_words[x] for x in indices)
 
         def sample(self, index, noise=0.2):
@@ -64,7 +67,7 @@ class InsuranceQA:
             index = np.argmax(np.random.multinomial(1, index, 1))
             return index
 
-def get_model(question_maxlen, answer_maxlen, vocab_len, n_hidden):
+def get_model(question_maxlen, answer_maxlen, vocab_len, n_hidden, load_save=False):
     answer = Input(shape=(answer_maxlen, vocab_len))
     masked = Masking(mask_value=0.)(answer)
 
@@ -97,6 +100,9 @@ def get_model(question_maxlen, answer_maxlen, vocab_len, n_hidden):
     model = Model([answer], [softmax])
     model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
+    if os.path.exists(model_save) and load_save:
+        model.load_weights(model_save)
+
     return model
 
 if __name__ == '__main__':
@@ -126,7 +132,7 @@ if __name__ == '__main__':
                 for a in ans:
                     answer = qa.table.encode([qa.vocab[x] for x in answers[a]], answer_maxlen)
                     question = qa.table.encode([qa.vocab[x] for x in s['question']], question_maxlen)
-                    question = np.amax(question, axis=0, keepdims=False)
+                    # question = np.amax(question, axis=0, keepdims=False)
                     answer_idx[i] = answer
                     question_idx[i] = question
                     i += 1
@@ -138,7 +144,7 @@ if __name__ == '__main__':
     test_gen = gen_questions(n_test, test=True)
 
     print('Generating model...')
-    model = get_model(question_maxlen=question_maxlen, answer_maxlen=answer_maxlen, vocab_len=len(qa.vocab), n_hidden=128)
+    model = get_model(question_maxlen=question_maxlen, answer_maxlen=answer_maxlen, vocab_len=len(qa.vocab), n_hidden=128, load_save=True)
 
     print('Training model...')
     for iteration in range(1, 200):
@@ -146,13 +152,13 @@ if __name__ == '__main__':
         print('-' * 50)
         print('Iteration', iteration)
         model.fit_generator(gen, samples_per_epoch=100*batch_size, nb_epoch=10)
+        model.save_weights(model_save, overwrite=True)
 
         x, y = next(test_gen)
-        y = y[0]
         pred = model.predict(x, verbose=0)
-        for noise in [0.2, 0.5, 1.0, 1.2]: # not sure what noise values would be good
-            print(' Noise: {}'.format(noise))
-            for i in range(n_test):
-                print('    Answer: {}'.format(qa.table.decode(x[0][i])))
-                print('    Expected: {}'.format(qa.table.decode(y[i])))
-                print('    Predicted: {}'.format(qa.table.decode(pred[i], noise=noise)))
+        y = y[0]
+        x = x[0]
+        for i in range(n_test):
+            print('Answer: {}'.format(qa.table.decode(x[i])))
+            print('  Expected: {}'.format(qa.table.decode(y[i])))
+            print('  Predicted: {}'.format(qa.table.decode(pred[i])))

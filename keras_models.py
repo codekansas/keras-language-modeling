@@ -104,7 +104,7 @@ class LanguageModel:
             question_output, answer_output = self._models
 
             similarity = self.get_similarity()
-            qa_model = merge([question_output, answer_output], mode=similarity, output_shape=lambda x: x[:-1])
+            qa_model = merge([question_output, answer_output], mode=similarity, output_shape=lambda x: x[0][:-1])
 
             self._qa_model = Model(input=[self.question, self.get_answer()], output=[qa_model])
 
