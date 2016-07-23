@@ -6,6 +6,7 @@ and generalizes to other questions and answers.
 from __future__ import print_function
 
 import os
+import random
 import sys
 
 import numpy as np
@@ -70,7 +71,6 @@ class InsuranceQA:
 def get_model(question_maxlen, answer_maxlen, vocab_len, n_hidden, load_save=False):
     answer = Input(shape=(answer_maxlen,), dtype='int32')
     embedded = Embedding(input_dim=vocab_len, output_dim=n_hidden, mask_zero=True)(answer)
-    # masked = Masking(mask_value=0.)(answer)
 
     # encoder rnn
     encode_rnn = GRU(n_hidden, return_sequences=True, dropout_U=0.2)(embedded)
@@ -132,7 +132,7 @@ if __name__ == '__main__':
             i = 0
             question_idx = np.zeros(shape=(batch_size, question_maxlen, len(qa.vocab)))
             answer_idx = np.zeros(shape=(batch_size, answer_maxlen))
-            for s in questions:
+            for s in random.shuffle(questions):
                 if test:
                     ans = s['good']
                 else:
@@ -154,7 +154,7 @@ if __name__ == '__main__':
 
     print('Generating model...')
     model = get_model(question_maxlen=question_maxlen, answer_maxlen=answer_maxlen, vocab_len=len(qa.vocab),
-                      n_hidden=256, load_save=False)
+                      n_hidden=256, load_save=True)
 
     print('Training model...')
     for iteration in range(1, nb_iteration + 1):
