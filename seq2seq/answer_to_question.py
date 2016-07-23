@@ -132,7 +132,8 @@ if __name__ == '__main__':
             i = 0
             question_idx = np.zeros(shape=(batch_size, question_maxlen, len(qa.vocab)))
             answer_idx = np.zeros(shape=(batch_size, answer_maxlen))
-            for s in random.shuffle(questions):
+            random.shuffle(questions)
+            for s in questions:
                 if test:
                     ans = s['good']
                 else:
