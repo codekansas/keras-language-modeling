@@ -7,14 +7,15 @@ from __future__ import print_function
 
 import os
 import random
-import sys
 
 import numpy as np
 from keras.engine import Input
-from keras.layers import RepeatVector, TimeDistributed, Dense, Activation, merge, ActivityRegularization, GRU, Embedding, \
-    regularizers
+from keras.layers import RepeatVector, TimeDistributed, Dense, Activation, merge, GRU, Embedding, regularizers, Lambda, \
+    Dropout
 from keras.models import Model
-from keras.optimizers import Adam
+import keras.backend as K
+
+from keras_models import LanguageModel
 
 try:
     import cPickle as pickle
@@ -34,8 +35,6 @@ class InsuranceQA:
         return pickle.load(open(os.path.join(data_path, name), 'rb'))
 
     class VocabularyTable:
-        ''' Identical to CharacterTable from Keras example '''
-
         def __init__(self, words):
             self.words = sorted(set(words))
             self.words_indices = dict((c, i) for i, c in enumerate(self.words))
@@ -43,7 +42,7 @@ class InsuranceQA:
 
         def encode(self, sentence, maxlen, one_hot=False):
             if one_hot:
-                indices = np.zeros((maxlen, len(self.words)), dtype=np.int32)
+                indices = np.zeros((maxlen, len(self.words) + 1), dtype=np.int32)
                 for i, w in enumerate(sentence):
                     if i == maxlen: break
                     indices[i, self.words_indices[w]] = 1
@@ -58,14 +57,7 @@ class InsuranceQA:
         def decode(self, indices, calc_argmax=True):
             if calc_argmax:
                 indices = np.argmax(indices, axis=-1)
-                # indices = [self.sample(i) for i in indices]
             return ' '.join(self.indices_words[x] for x in indices if x != 0)
-
-        def sample(self, index, noise=0.2):
-            index = np.log(index) / noise
-            index = np.exp(index) / np.sum(np.exp(index))
-            index = np.argmax(np.random.multinomial(1, index, 1))
-            return index
 
 
 def get_model(question_maxlen, answer_maxlen, vocab_len, n_hidden, load_save=False):
@@ -99,6 +91,7 @@ def get_model(question_maxlen, answer_maxlen, vocab_len, n_hidden, load_save=Fal
 
     # compile the prediction model
     model = Model([answer], [softmax])
+
     model.compile(loss='categorical_crossentropy', optimizer='rmsprop', metrics=['accuracy'])
 
     if os.path.exists(model_save) and load_save:
@@ -108,6 +101,49 @@ def get_model(question_maxlen, answer_maxlen, vocab_len, n_hidden, load_save=Fal
             print('A model exists at "%s", but it is not compatible' % model_save)
 
     return model
+
+
+class EmbeddingRNNModel(LanguageModel):
+    def build(self):
+        question = self.question
+        answer = self.get_answer()
+
+        rnn_model = get_model(question_maxlen=self.model_params.get('question_len', 20),
+                              answer_maxlen=self.model_params.get('question_len', 60),
+                              vocab_len=self.config['n_words'], n_hidden=256, load_save=True)
+        rnn_model.trainable = False
+
+        answer_inverted = rnn_model(answer)
+        argmax = Lambda(lambda x: K.argmax(x, axis=2), output_shape=lambda x: (x[0], x[1]))
+        argmax.trainable = False
+        answer_argmax = argmax(answer_inverted)
+
+        # add embedding layers
+        # weights = self.model_params.get('initial_embed_weights', None)
+        # weights = weights if weights is None else [weights]
+        embedding = Embedding(input_dim=self.config['n_words'],
+                              output_dim=self.model_params.get('n_embed_dims', 100),
+                              # weights=weights,
+                              mask_zero=True)
+        question_embedding = embedding(question)
+        answer_embedding = embedding(answer_argmax)
+
+        # dropout
+        dropout = Dropout(0.5)
+        question_dropout = dropout(question_embedding)
+        answer_dropout = dropout(answer_embedding)
+
+        # maxpooling
+        maxpool = Lambda(lambda x: K.max(x, axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
+        question_maxpool = maxpool(question_dropout)
+        answer_maxpool = maxpool(answer_dropout)
+
+        # activation
+        activation = Activation('tanh')
+        question_output = activation(question_maxpool)
+        answer_output = activation(answer_maxpool)
+
+        return question_output, answer_output
 
 
 if __name__ == '__main__':
@@ -130,7 +166,7 @@ if __name__ == '__main__':
             questions = qa.load('train')
         while True:
             i = 0
-            question_idx = np.zeros(shape=(batch_size, question_maxlen, len(qa.vocab)))
+            question_idx = np.zeros(shape=(batch_size, question_maxlen, len(qa.vocab) + 1))
             answer_idx = np.zeros(shape=(batch_size, answer_maxlen))
             random.shuffle(questions)
             for s in questions:
@@ -154,8 +190,8 @@ if __name__ == '__main__':
     test_gen = gen_questions(n_test, test=True)
 
     print('Generating model...')
-    model = get_model(question_maxlen=question_maxlen, answer_maxlen=answer_maxlen, vocab_len=len(qa.vocab),
-                      n_hidden=256, load_save=True)
+    model = get_model(question_maxlen=question_maxlen, answer_maxlen=answer_maxlen, vocab_len=len(qa.vocab) + 1,
+                      n_hidden=256, load_save=False)
 
     print('Training model...')
     for iteration in range(1, nb_iteration + 1):

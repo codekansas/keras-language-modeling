@@ -1,8 +1,6 @@
 from __future__ import print_function
 
 import os
-# can remove this depending on ide...
-os.environ['INSURANCE_QA'] = '/media/moloch/HHD/MachineLearning/data/insuranceQA/pyenc'
 
 import sys
 import random
@@ -10,12 +8,10 @@ from time import strftime, gmtime
 
 import pickle
 
-from keras.optimizers import RMSprop, Adam
 from scipy.stats import rankdata
 
-from keras_models import *
-
 random.seed(42)
+
 
 class Evaluator:
     def __init__(self, conf=None):
@@ -123,7 +119,8 @@ class Evaluator:
 
             print('Epoch %d :: ' % i, end='')
             self.print_time()
-            hist = model.fit([questions, good_answers, bad_answers], nb_epoch=1, batch_size=batch_size, validation_split=split)
+            hist = model.fit([questions, good_answers, bad_answers], nb_epoch=1, batch_size=batch_size,
+                             validation_split=split)
 
             if hist.history['val_loss'][0] < val_loss['loss']:
                 val_loss = {'loss': hist.history['val_loss'][0], 'epoch': i}
@@ -221,11 +218,14 @@ class Evaluator:
 
         return top1s, mrrs
 
+
 if __name__ == '__main__':
+    import numpy as np
+
     conf = {
-        'question_len': 30,
-        'answer_len': 200,
-        'n_words': 22353, # len(vocabulary) + 1
+        'question_len': 20,
+        'answer_len': 60,
+        'n_words': 22353,  # len(vocabulary) + 1
         'margin': 0.05,
 
         'training_params': {
@@ -249,11 +249,11 @@ if __name__ == '__main__':
             'n_hidden': 200,
 
             # convolution
-            'nb_filters': 1000, # * 4
+            'nb_filters': 1000,  # * 4
             'conv_activation': 'relu',
 
             # recurrent
-            'n_lstm_dims': 141, # * 2
+            'n_lstm_dims': 141,  # * 2
 
             'initial_embed_weights': np.load('word2vec_100_dim.embeddings'),
         },
@@ -269,11 +269,10 @@ if __name__ == '__main__':
     evaluator = Evaluator(conf)
 
     ##### Define model ######
-    model = AttentionModel(conf)
+    from seq2seq.answer_to_question import EmbeddingRNNModel
+    model = EmbeddingRNNModel(conf)
     optimizer = conf.get('training_params', dict()).get('optimizer', 'adam')
     model.compile(optimizer=optimizer)
-
-    import numpy as np
 
     # save embedding layer
     # evaluator.load_epoch(model, 33)

@@ -266,8 +266,10 @@ class AttentionModel(LanguageModel):
         answer_dropout = dropout(answer_embedding)
 
         # question rnn part
-        f_rnn = LSTM(self.model_params.get('n_lstm_dims', 141), return_sequences=True, dropout_U=0.2, consume_less='mem')
-        b_rnn = LSTM(self.model_params.get('n_lstm_dims', 141), return_sequences=True, dropout_U=0.2, consume_less='mem',
+        f_rnn = LSTM(self.model_params.get('n_lstm_dims', 141), return_sequences=True, dropout_U=0.2,
+                     consume_less='mem')
+        b_rnn = LSTM(self.model_params.get('n_lstm_dims', 141), return_sequences=True, dropout_U=0.2,
+                     consume_less='mem',
                      go_backwards=True)
         question_f_rnn = f_rnn(question_dropout)
         question_b_rnn = b_rnn(question_dropout)
