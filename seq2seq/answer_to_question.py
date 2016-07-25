@@ -11,7 +11,7 @@ import random
 import numpy as np
 from keras.engine import Input
 from keras.layers import RepeatVector, TimeDistributed, Dense, Activation, merge, GRU, Embedding, regularizers, Lambda, \
-    Dropout
+    constraints
 from keras.models import Model
 import keras.backend as K
 
@@ -33,6 +33,9 @@ class InsuranceQA:
 
     def load(self, name):
         return pickle.load(open(os.path.join(data_path, name), 'rb'))
+
+    def save(self, obj, name):
+        pickle.dump(obj, open(os.path.join(data_path, name), 'wb'))
 
     class VocabularyTable:
         def __init__(self, words):
@@ -63,6 +66,8 @@ class InsuranceQA:
 def get_model(question_maxlen, answer_maxlen, vocab_len, n_hidden, load_save=False):
     answer = Input(shape=(answer_maxlen,), dtype='int32')
     embedded = Embedding(input_dim=vocab_len, output_dim=n_hidden, mask_zero=True)(answer)
+    # answer = Input(shape=(answer_maxlen, vocab_len))
+    # embedded = Masking(mask_value=0.)(answer)
 
     # encoder rnn
     encode_rnn = GRU(n_hidden, return_sequences=True, dropout_U=0.2)(embedded)
@@ -116,24 +121,22 @@ class EmbeddingRNNModel(LanguageModel):
         answer_argmax = argmax(answer_inverted)
 
         # add embedding layers
-        # weights = self.model_params.get('initial_embed_weights', None)
-        # weights = weights if weights is None else [weights]
+        weights = self.model_params.get('initial_embed_weights', None)
+        weights = weights if weights is None else [weights]
         embedding = Embedding(input_dim=self.config['n_words'],
                               output_dim=self.model_params.get('n_embed_dims', 100),
-                              # weights=weights,
+                              # W_regularizer=regularizers.activity_l1(1e-4),
+                              W_constraint=constraints.nonneg(),
+                              dropout=0.5,
+                              weights=weights,
                               mask_zero=True)
         question_embedding = embedding(question)
         answer_embedding = embedding(answer_argmax)
 
-        # dropout
-        dropout = Dropout(0.5)
-        question_dropout = dropout(question_embedding)
-        answer_dropout = dropout(answer_embedding)
-
         # maxpooling
         maxpool = Lambda(lambda x: K.max(x, axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
-        question_maxpool = maxpool(question_dropout)
-        answer_maxpool = maxpool(answer_dropout)
+        question_maxpool = maxpool(question_embedding)
+        answer_maxpool = maxpool(answer_embedding)
 
         # activation
         activation = Activation('tanh')
@@ -190,18 +193,27 @@ if __name__ == '__main__':
     model = get_model(question_maxlen=question_maxlen, answer_maxlen=answer_maxlen, vocab_len=len(qa.vocab) + 1,
                       n_hidden=256, load_save=True)
 
-    print('Training model...')
-    for iteration in range(1, nb_iteration + 1):
-        print('\n' + '-' * 50 + '\nIteration %d' % iteration)
-        model.fit_generator(gen, samples_per_epoch=100 * batch_size, nb_epoch=nb_epoch)
-        model.save_weights(model_save, overwrite=True)
+    # print('Training model...')
+    # for iteration in range(1, nb_iteration + 1):
+    #     print('\n' + '-' * 50 + '\nIteration %d' % iteration)
+    #     model.fit_generator(gen, samples_per_epoch=100 * batch_size, nb_epoch=nb_epoch)
+    #     model.save_weights(model_save, overwrite=True)
+    #
+    #     # test this iteration on some sample data
+    #     x, y = next(test_gen)
+    #     pred = model.predict(x, verbose=0)
+    #     y = y[0]
+    #     x = x[0]
+    #     for i in range(n_test):
+    #         print('Answer: {}'.format(qa.table.decode(x[i], calc_argmax=False)))
+    #         print('  Expected: {}'.format(qa.table.decode(y[i])))
+    #         print('  Predicted: {}'.format(qa.table.decode(pred[i])))
 
-        # test this iteration on some sample data
-        x, y = next(test_gen)
-        pred = model.predict(x, verbose=0)
-        y = y[0]
-        x = x[0]
-        for i in range(n_test):
-            print('Answer: {}'.format(qa.table.decode(x[i], calc_argmax=False)))
-            print('  Expected: {}'.format(qa.table.decode(y[i])))
-            print('  Predicted: {}'.format(qa.table.decode(pred[i])))
+    print('Saving data points...')
+    generated = dict()
+    for key, answer in answers.items():
+        print('\r%d / %d' % (key, len(answers)), end = '')
+        output = model.predict(qa.table.encode([qa.vocab[x] for x in answer], answer_maxlen, one_hot=False).reshape((1, answer_maxlen)))
+        argmax = np.argmax(output, axis=-1)[0]
+        generated[key] = answer
+    qa.save(generated, 'generated')

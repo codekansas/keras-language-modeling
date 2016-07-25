@@ -10,6 +10,8 @@ import pickle
 
 from scipy.stats import rankdata
 
+from keras_models import EmbeddingModel
+
 random.seed(42)
 
 
@@ -23,7 +25,7 @@ class Evaluator:
         self.path = data_path
         self.conf = dict() if conf is None else conf
         self.params = conf.get('training_params', dict())
-        self.answers = self.load('answers')
+        self.answers = self.load('generated') # self.load('answers')
         self._vocab = None
         self._reverse_vocab = None
         self._eval_sets = None
@@ -132,6 +134,8 @@ class Evaluator:
             if save_every is not None and i % save_every == 0:
                 self.save_epoch(model, i)
 
+        return val_loss
+
     ##### Evaluation #####
 
     def prog_bar(self, so_far, total, n_bars=20):
@@ -226,13 +230,13 @@ if __name__ == '__main__':
         'question_len': 20,
         'answer_len': 60,
         'n_words': 22353,  # len(vocabulary) + 1
-        'margin': 0.05,
+        'margin': 0.009,
 
         'training_params': {
             'save_every': 1,
             # 'eval_every': 1,
             'batch_size': 128,
-            'nb_epoch': 1000,
+            'nb_epoch': 100,
             'validation_split': 0.2,
             'optimizer': 'adam',
             # 'optimizer': Adam(clip_norm=0.1),
@@ -245,7 +249,7 @@ if __name__ == '__main__':
         },
 
         'model_params': {
-            'n_embed_dims': 100,
+            'n_embed_dims': 1000,
             'n_hidden': 200,
 
             # convolution
@@ -255,11 +259,11 @@ if __name__ == '__main__':
             # recurrent
             'n_lstm_dims': 141,  # * 2
 
-            'initial_embed_weights': np.load('word2vec_100_dim.embeddings'),
+            # 'initial_embed_weights': np.load('word2vec_100_dim.embeddings'),
         },
 
         'similarity_params': {
-            'mode': 'gesd',
+            'mode': 'cosine',
             'gamma': 1,
             'c': 1,
             'd': 2,
@@ -269,8 +273,7 @@ if __name__ == '__main__':
     evaluator = Evaluator(conf)
 
     ##### Define model ######
-    from seq2seq.answer_to_question import EmbeddingRNNModel
-    model = EmbeddingRNNModel(conf)
+    model = EmbeddingModel(conf)
     optimizer = conf.get('training_params', dict()).get('optimizer', 'adam')
     model.compile(optimizer=optimizer)
 
@@ -284,8 +287,9 @@ if __name__ == '__main__':
 
     # train the model
     # evaluator.load_epoch(model, 54)
-    evaluator.train(model)
+    best_loss = evaluator.train(model)
 
     # evaluate mrr for a particular epoch
-    # evaluator.load_epoch(model, 54)
-    # evaluator.get_mrr(model, evaluate_all=True)
+    evaluator.load_epoch(model, best_loss['epoch'])
+    # evaluator.load_epoch(model, 15)
+    evaluator.get_mrr(model, evaluate_all=True)
