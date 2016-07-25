@@ -10,7 +10,7 @@ import pickle
 
 from scipy.stats import rankdata
 
-from keras_models import EmbeddingModel
+from keras_models import EmbeddingModel, AttentionModel
 
 random.seed(42)
 
@@ -230,13 +230,13 @@ if __name__ == '__main__':
         'question_len': 20,
         'answer_len': 60,
         'n_words': 22353,  # len(vocabulary) + 1
-        'margin': 0.009,
+        'margin': 0.2,
 
         'training_params': {
             'save_every': 1,
             # 'eval_every': 1,
-            'batch_size': 128,
-            'nb_epoch': 100,
+            'batch_size': 20,
+            'nb_epoch': 1000,
             'validation_split': 0.2,
             'optimizer': 'adam',
             # 'optimizer': Adam(clip_norm=0.1),
@@ -249,7 +249,7 @@ if __name__ == '__main__':
         },
 
         'model_params': {
-            'n_embed_dims': 1000,
+            'n_embed_dims': 100,
             'n_hidden': 200,
 
             # convolution
@@ -259,7 +259,7 @@ if __name__ == '__main__':
             # recurrent
             'n_lstm_dims': 141,  # * 2
 
-            # 'initial_embed_weights': np.load('word2vec_1000_dim.embeddings'),
+            'initial_embed_weights': np.load('models/word2vec_100_dim.h5'),
         },
 
         'similarity_params': {
@@ -273,7 +273,7 @@ if __name__ == '__main__':
     evaluator = Evaluator(conf)
 
     ##### Define model ######
-    model = EmbeddingModel(conf)
+    model = AttentionModel(conf)
     optimizer = conf.get('training_params', dict()).get('optimizer', 'adam')
     model.compile(optimizer=optimizer)
 
@@ -285,9 +285,13 @@ if __name__ == '__main__':
 
     # train the model
     # evaluator.load_epoch(model, 54)
-    # best_loss = evaluator.train(model)
+    best_loss = evaluator.train(model)
 
     # evaluate mrr for a particular epoch
-    # evaluator.load_epoch(model, best_loss['epoch'])
-    # evaluator.load_epoch(model, 15)
-    # evaluator.get_mrr(model, evaluate_all=True)
+    evaluator.load_epoch(model, best_loss['epoch'])
+    # evaluator.load_epoch(model, 116)
+    evaluator.get_mrr(model, evaluate_all=True)
+    # for epoch in range(1, 100):
+    #     print('Epoch %d' % epoch)
+    #     evaluator.load_epoch(model, epoch)
+    #     evaluator.get_mrr(model, evaluate_all=True)

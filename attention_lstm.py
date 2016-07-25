@@ -6,12 +6,12 @@ from keras.layers import LSTM, activations
 
 class AttentionLSTM(LSTM):
     def __init__(self, output_dim, attention_vec, attn_activation='tanh',
-                 attn_inner_activation='tanh', single_attn=False,
+                 attn_inner_activation='tanh', single_attention_param=False,
                  n_attention_dim=None, **kwargs):
         self.attention_vec = attention_vec
         self.attn_activation = activations.get(attn_activation)
         self.attn_inner_activation = activations.get(attn_inner_activation)
-        self.single_attention_param = single_attn
+        self.single_attention_param = single_attention_param
         self.n_attention_dim = output_dim if n_attention_dim is None else n_attention_dim
 
         super(AttentionLSTM, self).__init__(output_dim, **kwargs)

@@ -139,7 +139,7 @@ class EmbeddingRNNModel(LanguageModel):
         answer_maxpool = maxpool(answer_embedding)
 
         # activation
-        activation = Activation('tanh')
+        activation = Activation('linear')
         question_output = activation(question_maxpool)
         answer_output = activation(answer_maxpool)
 
@@ -194,20 +194,20 @@ if __name__ == '__main__':
                       n_hidden=256, load_save=True)
 
     # print('Training model...')
-    # for iteration in range(1, nb_iteration + 1):
-    #     print('\n' + '-' * 50 + '\nIteration %d' % iteration)
-    #     model.fit_generator(gen, samples_per_epoch=100 * batch_size, nb_epoch=nb_epoch)
-    #     model.save_weights(model_save, overwrite=True)
-    #
-    #     # test this iteration on some sample data
-    #     x, y = next(test_gen)
-    #     pred = model.predict(x, verbose=0)
-    #     y = y[0]
-    #     x = x[0]
-    #     for i in range(n_test):
-    #         print('Answer: {}'.format(qa.table.decode(x[i], calc_argmax=False)))
-    #         print('  Expected: {}'.format(qa.table.decode(y[i])))
-    #         print('  Predicted: {}'.format(qa.table.decode(pred[i])))
+    for iteration in range(1, nb_iteration + 1):
+        print('\n' + '-' * 50 + '\nIteration %d' % iteration)
+        model.fit_generator(gen, samples_per_epoch=100 * batch_size, nb_epoch=nb_epoch)
+        model.save_weights(model_save, overwrite=True)
+
+        # test this iteration on some sample data
+        x, y = next(test_gen)
+        pred = model.predict(x, verbose=0)
+        y = y[0]
+        x = x[0]
+        for i in range(n_test):
+            print('Answer: {}'.format(qa.table.decode(x[i], calc_argmax=False)))
+            print('  Expected: {}'.format(qa.table.decode(y[i])))
+            print('  Predicted: {}'.format(qa.table.decode(pred[i])))
 
     print('Saving data points...')
     generated = dict()

@@ -4,11 +4,12 @@ from abc import abstractmethod
 
 from keras.engine import Input
 from keras.layers import merge, Embedding, Dropout, Convolution1D, Lambda, Activation, LSTM, Dense, TimeDistributed, \
-    ActivityRegularization
+    ActivityRegularization, constraints, regularizers
 from keras import backend as K
 from keras.models import Model
 
 import numpy as np
+from keras.regularizers import EigenvalueRegularizer
 
 from attention_lstm import AttentionLSTM
 
@@ -153,6 +154,7 @@ class EmbeddingModel(LanguageModel):
         weights = weights if weights is None else [weights]
         embedding = Embedding(input_dim=self.config['n_words'],
                               output_dim=self.model_params.get('n_embed_dims', 100),
+                              W_constraint=constraints.nonneg(),
                               weights=weights,
                               mask_zero=True)
         question_embedding = embedding(question)
@@ -169,7 +171,7 @@ class EmbeddingModel(LanguageModel):
         answer_maxpool = maxpool(answer_dropout)
 
         # activation
-        activation = Activation('tanh')
+        activation = Activation('linear')
         question_output = activation(question_maxpool)
         answer_output = activation(answer_maxpool)
 
@@ -204,25 +206,22 @@ class ConvolutionModel(LanguageModel):
         answer_dropout = dropout(answer_embedding)
 
         # dense
-        dense = TimeDistributed(Dense(self.model_params.get('n_hidden', 200), activation='tanh'))
+        dense = TimeDistributed(Dense(self.model_params.get('n_hidden', 200), activation='tanh',
+                                      activity_regularizer=regularizers.activity_l1(1e-4),
+                                      W_regularizer=regularizers.l1(1e-4),
+                                      dropout=0.5))
         question_dense = dense(question_dropout)
         answer_dense = dense(answer_dropout)
-
-        # regularization
-        question_dense = ActivityRegularization(l2=0.0001)(question_dense)
-        answer_dense = ActivityRegularization(l2=0.0001)(answer_dense)
-
-        # dropout
-        question_dropout = dropout(question_dense)
-        answer_dropout = dropout(answer_dense)
 
         # cnn
         cnns = [Convolution1D(filter_length=filter_length,
                               nb_filter=self.model_params.get('nb_filters', 1000),
                               activation=self.model_params.get('conv_activation', 'relu'),
+                              W_regularizer=regularizers.l1(1e-4),
+                              activity_regularizer=regularizers.activity_l1(1e-4),
                               border_mode='same') for filter_length in [2, 3, 5, 7]]
-        question_cnn = merge([cnn(question_dropout) for cnn in cnns], mode='concat')
-        answer_cnn = merge([cnn(answer_dropout) for cnn in cnns], mode='concat')
+        question_cnn = merge([cnn(question_dense) for cnn in cnns], mode='concat')
+        answer_cnn = merge([cnn(answer_dense) for cnn in cnns], mode='concat')
 
         # dropout
         question_dropout = dropout(question_cnn)
@@ -234,9 +233,10 @@ class ConvolutionModel(LanguageModel):
         answer_pool = maxpool(answer_dropout)
 
         # activation
-        activation = Activation('tanh')
-        question_output = activation(question_pool)
-        answer_output = activation(answer_pool)
+        dropout = Dropout(0.4)
+        activation = Activation('linear')
+        question_output = activation(dropout(question_pool))
+        answer_output = activation(dropout(answer_pool))
 
         return question_output, answer_output
 
@@ -267,10 +267,9 @@ class AttentionModel(LanguageModel):
 
         # question rnn part
         f_rnn = LSTM(self.model_params.get('n_lstm_dims', 141), return_sequences=True, dropout_U=0.2,
-                     consume_less='mem')
+                     U_regularizer=regularizers.l2(1e-4), consume_less='mem')
         b_rnn = LSTM(self.model_params.get('n_lstm_dims', 141), return_sequences=True, dropout_U=0.2,
-                     consume_less='mem',
-                     go_backwards=True)
+                     U_regularizer=regularizers.l2(1e-4), consume_less='mem', go_backwards=True)
         question_f_rnn = f_rnn(question_dropout)
         question_b_rnn = b_rnn(question_dropout)
         question_f_dropout = dropout(question_f_rnn)
@@ -278,22 +277,24 @@ class AttentionModel(LanguageModel):
 
         # maxpooling
         maxpool = Lambda(lambda x: K.max(x, axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
-        question_pool = merge([maxpool(question_f_dropout), maxpool(question_b_dropout)], mode='concat', concat_axis=-1)
+        avepool = Lambda(lambda x: K.mean(x, axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
+        question_pool = merge([avepool(question_f_dropout), avepool(question_b_dropout)], mode='concat', concat_axis=-1)
 
         # answer rnn part
-        f_rnn = AttentionLSTM(self.model_params.get('n_lstm_dims', 141), question_pool, single_attn=True, dropout_U=0.2,
-                              return_sequences=True, consume_less='mem')
-        b_rnn = AttentionLSTM(self.model_params.get('n_lstm_dims', 141), question_pool, single_attn=True, dropout_U=0.2,
-                              return_sequences=True, consume_less='mem', go_backwards=True)
+        f_rnn = AttentionLSTM(self.model_params.get('n_lstm_dims', 141), question_pool, dropout_U=0.2,
+                              U_regularizer=regularizers.l1(1e-4), return_sequences=True, consume_less='mem',
+                              single_attention_param=True)
+        b_rnn = AttentionLSTM(self.model_params.get('n_lstm_dims', 141), question_pool, dropout_U=0.2,
+                              U_regularizer=regularizers.l1(1e-4), return_sequences=True, consume_less='mem',
+                              go_backwards=True, single_attention_param=True)
         answer_f_rnn = f_rnn(answer_dropout)
         answer_b_rnn = b_rnn(answer_dropout)
-        answer_f_dropout = dropout(answer_f_rnn)
-        answer_b_dropout = dropout(answer_b_rnn)
-        answer_pool = merge([maxpool(answer_f_dropout), maxpool(answer_b_dropout)], mode='concat', concat_axis=-1)
+        answer_pool = merge([maxpool(answer_f_rnn), maxpool(answer_b_rnn)], mode='concat', concat_axis=-1)
 
         # activation
-        activation = Activation('tanh')
-        question_output = activation(question_pool)
-        answer_output = activation(answer_pool)
+        dropout = Dropout(0.4)
+        activation = Activation('linear')
+        question_output = activation(dropout(question_pool))
+        answer_output = activation(dropout(answer_pool))
 
         return question_output, answer_output
