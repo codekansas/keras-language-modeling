@@ -30,3 +30,13 @@ Attentional LSTM + Max Pooling:
    - 0.613 on test 2
    - 0.635 on dev
 
+Unsupervised RNN language model + trained embeddings:
+ - Top 1 precision:
+   - 0.546 on test 1
+   - 0.527 on test 2
+   - 0.552 on dev
+ - Mrr:
+   - 0.670 on test 1
+   - 0.651 on test 2
+   - 0.671 on dev
+
