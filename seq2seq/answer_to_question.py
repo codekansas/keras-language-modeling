@@ -95,10 +95,7 @@ def get_model(question_maxlen, answer_maxlen, vocab_len, n_hidden, load_save=Fal
     model.compile(loss='categorical_crossentropy', optimizer='rmsprop', metrics=['accuracy'])
 
     if os.path.exists(model_save) and load_save:
-        try:
-            model.load_weights(model_save)
-        except Exception:
-            print('A model exists at "%s", but it is not compatible' % model_save)
+        model.load_weights(model_save)
 
     return model
 
@@ -191,7 +188,7 @@ if __name__ == '__main__':
 
     print('Generating model...')
     model = get_model(question_maxlen=question_maxlen, answer_maxlen=answer_maxlen, vocab_len=len(qa.vocab) + 1,
-                      n_hidden=256, load_save=False)
+                      n_hidden=256, load_save=True)
 
     print('Training model...')
     for iteration in range(1, nb_iteration + 1):
