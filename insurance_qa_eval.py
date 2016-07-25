@@ -25,7 +25,7 @@ class Evaluator:
         self.path = data_path
         self.conf = dict() if conf is None else conf
         self.params = conf.get('training_params', dict())
-        self.answers = self.load('generated') # self.load('answers')
+        self.answers = self.load('answers') # self.load('generated')
         self._vocab = None
         self._reverse_vocab = None
         self._eval_sets = None
@@ -259,7 +259,7 @@ if __name__ == '__main__':
             # recurrent
             'n_lstm_dims': 141,  # * 2
 
-            # 'initial_embed_weights': np.load('word2vec_100_dim.embeddings'),
+            # 'initial_embed_weights': np.load('word2vec_1000_dim.embeddings'),
         },
 
         'similarity_params': {
@@ -278,18 +278,16 @@ if __name__ == '__main__':
     model.compile(optimizer=optimizer)
 
     # save embedding layer
-    # evaluator.load_epoch(model, 33)
+    # evaluator.load_epoch(model, 7)
     # embedding_layer = model.prediction_model.layers[2].layers[2]
-    # evaluator.load_epoch(model, 100)
-    # evaluator.train(model)
     # weights = embedding_layer.get_weights()[0]
     # np.save(open('models/embedding_1000_dim.h5', 'wb'), weights)
 
     # train the model
     # evaluator.load_epoch(model, 54)
-    best_loss = evaluator.train(model)
+    # best_loss = evaluator.train(model)
 
     # evaluate mrr for a particular epoch
-    evaluator.load_epoch(model, best_loss['epoch'])
+    # evaluator.load_epoch(model, best_loss['epoch'])
     # evaluator.load_epoch(model, 15)
-    evaluator.get_mrr(model, evaluate_all=True)
+    # evaluator.get_mrr(model, evaluate_all=True)
