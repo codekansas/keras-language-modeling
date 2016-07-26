@@ -8,9 +8,10 @@ from time import strftime, gmtime
 
 import pickle
 
+from keras.optimizers import Adam
 from scipy.stats import rankdata
 
-from keras_models import EmbeddingModel, AttentionModel
+from keras_models import EmbeddingModel, AttentionModel, ConvolutionModel
 
 random.seed(42)
 
@@ -104,20 +105,17 @@ class Evaluator:
 
         questions = self.padq(questions)
         good_answers = self.pada(good_answers)
-        # bad_answers = self.pada(random.sample(self.answers.values(), len(good_answers)))
 
         val_loss = {'loss': 1., 'epoch': 0}
 
         for i in range(1, nb_epoch):
-            # bad_answers = np.roll(good_answers, random.randint(10, len(questions) - 10))
-            # bad_answers = good_answers.copy()
-            # random.shuffle(bad_answers)
+            # sample from all answers to get bad answers
             bad_answers = self.pada(random.sample(self.answers.values(), len(good_answers)))
 
             # shuffle questions
-            # zipped = zip(questions, good_answers)
-            # random.shuffle(zipped)
-            # questions[:], good_answers[:] = zip(*zipped)
+            zipped = zip(questions, good_answers)
+            random.shuffle(zipped)
+            questions[:], good_answers[:] = zip(*zipped)
 
             print('Epoch %d :: ' % i, end='')
             self.print_time()
@@ -127,9 +125,6 @@ class Evaluator:
             if hist.history['val_loss'][0] < val_loss['loss']:
                 val_loss = {'loss': hist.history['val_loss'][0], 'epoch': i}
             print('Best: Loss = {}, Epoch = {}'.format(val_loss['loss'], val_loss['epoch']))
-
-            if eval_every is not None and i % eval_every == 0:
-                self.get_mrr(model)
 
             if save_every is not None and i % save_every == 0:
                 self.save_epoch(model, i)
@@ -227,25 +222,17 @@ if __name__ == '__main__':
     import numpy as np
 
     conf = {
-        'question_len': 20,
-        'answer_len': 60,
+        'question_len': 200,
+        'answer_len': 200,
         'n_words': 22353,  # len(vocabulary) + 1
         'margin': 0.2,
 
         'training_params': {
             'save_every': 1,
-            # 'eval_every': 1,
             'batch_size': 20,
-            'nb_epoch': 1000,
+            'nb_epoch': 100,
             'validation_split': 0.2,
-            'optimizer': 'adam',
-            # 'optimizer': Adam(clip_norm=0.1),
-            # 'n_eval': 100,
-
-            'evaluate_all_threshold': {
-                'mode': 'all',
-                'top1': 0.4,
-            },
+            'optimizer': Adam(clipnorm=1e-2),
         },
 
         'model_params': {
@@ -254,7 +241,7 @@ if __name__ == '__main__':
 
             # convolution
             'nb_filters': 1000,  # * 4
-            'conv_activation': 'relu',
+            'conv_activation': 'tanh',
 
             # recurrent
             'n_lstm_dims': 141,  # * 2
@@ -263,7 +250,7 @@ if __name__ == '__main__':
         },
 
         'similarity_params': {
-            'mode': 'cosine',
+            'mode': 'gesd',
             'gamma': 1,
             'c': 1,
             'd': 2,
@@ -284,12 +271,12 @@ if __name__ == '__main__':
     # np.save(open('models/embedding_1000_dim.h5', 'wb'), weights)
 
     # train the model
-    # evaluator.load_epoch(model, 54)
+    # evaluator.load_epoch(model, 42)
     best_loss = evaluator.train(model)
 
     # evaluate mrr for a particular epoch
     evaluator.load_epoch(model, best_loss['epoch'])
-    # evaluator.load_epoch(model, 116)
+    # evaluator.load_epoch(model, 31)
     evaluator.get_mrr(model, evaluate_all=True)
     # for epoch in range(1, 100):
     #     print('Epoch %d' % epoch)

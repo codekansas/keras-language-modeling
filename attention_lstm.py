@@ -6,11 +6,9 @@ from keras.layers import LSTM, activations
 
 class AttentionLSTM(LSTM):
     def __init__(self, output_dim, attention_vec, attn_activation='tanh',
-                 attn_inner_activation='tanh', single_attention_param=False,
-                 n_attention_dim=None, **kwargs):
+                 single_attention_param=False, n_attention_dim=None, **kwargs):
         self.attention_vec = attention_vec
         self.attn_activation = activations.get(attn_activation)
-        self.attn_inner_activation = activations.get(attn_inner_activation)
         self.single_attention_param = single_attention_param
         self.n_attention_dim = output_dim if n_attention_dim is None else n_attention_dim
 
@@ -51,10 +49,10 @@ class AttentionLSTM(LSTM):
         h, [h, c] = super(AttentionLSTM, self).step(x, states)
         attention = states[4]
 
-        m = self.attn_inner_activation(K.dot(h, self.U_a) * attention + self.b_a)
+        m = self.attn_activation(K.dot(h, self.U_a) * attention + self.b_a)
         # Intuitively it makes more sense to use a sigmoid (was getting some NaN problems
         # which I think might have been caused by the exponential function -> gradients blow up)
-        s = self.attn_activation(K.dot(m, self.U_s) + self.b_s)
+        s = K.sigmoid(K.dot(m, self.U_s) + self.b_s)
 
         if self.single_attention_param:
             h = h * K.repeat_elements(s, self.output_dim, axis=1)
