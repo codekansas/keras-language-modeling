@@ -26,7 +26,7 @@ class Evaluator:
         self.path = data_path
         self.conf = dict() if conf is None else conf
         self.params = conf.get('training_params', dict())
-        self.answers = self.load('answers') # self.load('generated')
+        self.answers = self.load('answers')  # self.load('generated')
         self._vocab = None
         self._reverse_vocab = None
         self._eval_sets = None
@@ -88,7 +88,6 @@ class Evaluator:
         print(strftime('%Y-%m-%d %H:%M:%S :: ', gmtime()), end='')
 
     def train(self, model):
-        eval_every = self.params.get('eval_every', None)
         save_every = self.params.get('save_every', None)
         batch_size = self.params.get('batch_size', 128)
         nb_epoch = self.params.get('nb_epoch', 10)
@@ -111,11 +110,6 @@ class Evaluator:
         for i in range(1, nb_epoch):
             # sample from all answers to get bad answers
             bad_answers = self.pada(random.sample(self.answers.values(), len(good_answers)))
-
-            # shuffle questions
-            zipped = zip(questions, good_answers)
-            random.shuffle(zipped)
-            questions[:], good_answers[:] = zip(*zipped)
 
             print('Epoch %d :: ' % i, end='')
             self.print_time()
@@ -177,7 +171,7 @@ class Evaluator:
                 max_r = np.argmax(r)
                 max_n = np.argmax(r[:n_good])
 
-                # print(' '.join(self.revert(d['question'])))
+                # print(' '.join(self.revegrt(d['question'])))
                 # print(' '.join(self.revert(self.answers[indices[max_r]])))
                 # print(' '.join(self.revert(self.answers[indices[max_n]])))
 
@@ -222,8 +216,8 @@ if __name__ == '__main__':
     import numpy as np
 
     conf = {
-        'question_len': 200,
-        'answer_len': 200,
+        'question_len': 50,
+        'answer_len': 100,
         'n_words': 22353,  # len(vocabulary) + 1
         'margin': 0.2,
 
@@ -247,10 +241,11 @@ if __name__ == '__main__':
             'n_lstm_dims': 141,  # * 2
 
             'initial_embed_weights': np.load('models/word2vec_100_dim.h5'),
+            'similarity_dropout': 0.2,
         },
 
         'similarity_params': {
-            'mode': 'gesd',
+            'mode': 'cosine',
             'gamma': 1,
             'c': 1,
             'd': 2,
@@ -260,7 +255,7 @@ if __name__ == '__main__':
     evaluator = Evaluator(conf)
 
     ##### Define model ######
-    model = AttentionModel(conf)
+    model = EmbeddingModel(conf)
     optimizer = conf.get('training_params', dict()).get('optimizer', 'adam')
     model.compile(optimizer=optimizer)
 
@@ -271,12 +266,12 @@ if __name__ == '__main__':
     # np.save(open('models/embedding_1000_dim.h5', 'wb'), weights)
 
     # train the model
-    # evaluator.load_epoch(model, 42)
+    # evaluator.load_epoch(model, 6)
     best_loss = evaluator.train(model)
 
     # evaluate mrr for a particular epoch
     evaluator.load_epoch(model, best_loss['epoch'])
-    # evaluator.load_epoch(model, 31)
+    # evaluator.load_epoch(model, 68)
     evaluator.get_mrr(model, evaluate_all=True)
     # for epoch in range(1, 100):
     #     print('Epoch %d' % epoch)

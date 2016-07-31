@@ -105,31 +105,32 @@ class LanguageModel:
             question_output, answer_output = self._models
 
             similarity = self.get_similarity()
-            qa_model = merge([question_output, answer_output], mode=similarity, output_shape=lambda x: x[:-1])
+            qa_model = merge([question_output, answer_output], mode=similarity, output_shape=lambda _: (None, 1))
+            dropout = Dropout(self.similarity_params.get('similarity_dropout', 0.2))(qa_model)
 
-            self._qa_model = Model(input=[self.question, self.get_answer()], output=[qa_model])
+            self._qa_model = Model(input=[self.question, self.get_answer()], output=[dropout])
 
         return self._qa_model
 
     def compile(self, optimizer, **kwargs):
         qa_model = self.get_qa_model()
 
-        good_output = qa_model([self.question, self.answer_good])
-        bad_output = qa_model([self.question, self.answer_bad])
+        good_similarity = qa_model([self.question, self.answer_good])
+        bad_similarity = qa_model([self.question, self.answer_bad])
 
-        loss = merge([good_output, bad_output],
+        loss = merge([good_similarity, bad_similarity],
                      mode=lambda x: K.relu(self.config['margin'] - x[0] + x[1]),
                      output_shape=lambda x: x[0])
 
         self.training_model = Model(input=[self.question, self.answer_good, self.answer_bad], output=loss)
         self.training_model.compile(loss=lambda y_true, y_pred: y_pred, optimizer=optimizer, **kwargs)
 
-        self.prediction_model = Model(input=[self.question, self.answer_good], output=good_output)
+        self.prediction_model = Model(input=[self.question, self.answer_good], output=good_similarity)
         self.prediction_model.compile(loss='binary_crossentropy', optimizer=optimizer, **kwargs)
 
     def fit(self, x, **kwargs):
         assert self.training_model is not None, 'Must compile the model before fitting data'
-        y = np.zeros(shape=x[0].shape[:1])
+        y = np.zeros(shape=(x[0].shape[0],))
         return self.training_model.fit(x, y, **kwargs)
 
     def predict(self, x, **kwargs):
@@ -160,22 +161,12 @@ class EmbeddingModel(LanguageModel):
         question_embedding = embedding(question)
         answer_embedding = embedding(answer)
 
-        # dropout
-        dropout = Dropout(0.5)
-        question_dropout = dropout(question_embedding)
-        answer_dropout = dropout(answer_embedding)
-
         # maxpooling
         maxpool = Lambda(lambda x: K.max(x, axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
-        question_maxpool = maxpool(question_dropout)
-        answer_maxpool = maxpool(answer_dropout)
+        question_pool = maxpool(question_embedding)
+        answer_pool = maxpool(answer_embedding)
 
-        # activation
-        activation = Activation('linear')
-        question_output = activation(question_maxpool)
-        answer_output = activation(answer_maxpool)
-
-        return question_output, answer_output
+        return question_pool, answer_pool
 
 
 class ConvolutionModel(LanguageModel):
@@ -200,18 +191,13 @@ class ConvolutionModel(LanguageModel):
         # embedding.params = []
         # embedding.updates = []
 
-        # dropout
-        dropout = Dropout(0.5)
-        question_dropout = dropout(question_embedding)
-        answer_dropout = dropout(answer_embedding)
-
         # dense
         dense = TimeDistributed(Dense(self.model_params.get('n_hidden', 200),
                                       # activity_regularizer=regularizers.activity_l1(1e-4),
                                       # W_regularizer=regularizers.l1(1e-4),
                                       activation='tanh'))
-        question_dense = dropout(dense(question_dropout))
-        answer_dense = dropout(dense(answer_dropout))
+        question_dense = dense(question_embedding)
+        answer_dense = dense(answer_embedding)
 
         # cnn
         cnns = [Convolution1D(filter_length=filter_length,
@@ -223,23 +209,13 @@ class ConvolutionModel(LanguageModel):
         question_cnn = merge([cnn(question_dense) for cnn in cnns], mode='concat')
         answer_cnn = merge([cnn(answer_dense) for cnn in cnns], mode='concat')
 
-        # dropout
-        question_dropout = dropout(question_cnn)
-        answer_dropout = dropout(answer_cnn)
-
         # maxpooling
         maxpool = Lambda(lambda x: K.max(x, axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
         avepool = Lambda(lambda x: K.mean(x, axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
-        question_pool = maxpool(question_dropout)
-        answer_pool = maxpool(answer_dropout)
+        question_pool = maxpool(question_cnn)
+        answer_pool = maxpool(answer_cnn)
 
-        # activation
-        larger_dropout = Dropout(0.5)
-        activation = Activation('linear')
-        question_output = larger_dropout(activation(question_pool))
-        answer_output = larger_dropout(activation(answer_pool))
-
-        return question_output, answer_output
+        return question_pool, answer_pool
 
 
 class AttentionModel(LanguageModel):
@@ -283,10 +259,4 @@ class AttentionModel(LanguageModel):
         answer_b_rnn = b_rnn(answer_embedding)
         answer_pool = merge([maxpool(answer_f_rnn), maxpool(answer_b_rnn)], mode='concat', concat_axis=-1)
 
-        # activation
-        dropout = Dropout(0.5)
-        activation = Activation('linear')
-        question_output = activation(dropout(question_pool))
-        answer_output = activation(dropout(answer_pool))
-
-        return question_output, answer_output
+        return question_pool, answer_pool

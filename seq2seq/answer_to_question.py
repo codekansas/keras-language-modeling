@@ -127,7 +127,6 @@ class EmbeddingRNNModel(LanguageModel):
                               output_dim=self.model_params.get('n_embed_dims', 100),
                               # W_regularizer=regularizers.activity_l1(1e-4),
                               W_constraint=constraints.nonneg(),
-                              dropout=0.5,
                               weights=weights,
                               mask_zero=True)
         question_embedding = embedding(question)
