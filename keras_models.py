@@ -117,7 +117,9 @@ class LanguageModel:
         good_output = qa_model([self.question, self.answer_good])
         bad_output = qa_model([self.question, self.answer_bad])
 
-        loss = merge([good_output, bad_output],
+        dropout = Dropout(self.model_params.get('similarity_dropout', 0.5))
+
+        loss = merge([dropout(good_output), dropout(bad_output)],
                      mode=lambda x: K.relu(self.config['margin'] - x[0] + x[1]),
                      output_shape=lambda x: x[0])
 
@@ -130,6 +132,9 @@ class LanguageModel:
     def fit(self, x, **kwargs):
         assert self.training_model is not None, 'Must compile the model before fitting data'
         y = np.zeros(shape=x[0].shape[:1])
+        if 'validation_data' in kwargs:
+            data = kwargs['validation_data']
+            kwargs['validation_data'] = [data, np.zeros(shape=data[0].shape[:1])]
         return self.training_model.fit(x, y, **kwargs)
 
     def predict(self, x, **kwargs):
@@ -160,22 +165,12 @@ class EmbeddingModel(LanguageModel):
         question_embedding = embedding(question)
         answer_embedding = embedding(answer)
 
-        # dropout
-        dropout = Dropout(0.5)
-        question_dropout = dropout(question_embedding)
-        answer_dropout = dropout(answer_embedding)
-
         # maxpooling
         maxpool = Lambda(lambda x: K.max(x, axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
-        question_maxpool = maxpool(question_dropout)
-        answer_maxpool = maxpool(answer_dropout)
+        question_pool = maxpool(question_embedding)
+        answer_pool = maxpool(answer_embedding)
 
-        # activation
-        activation = Activation('linear')
-        question_output = activation(question_maxpool)
-        answer_output = activation(answer_maxpool)
-
-        return question_output, answer_output
+        return question_pool, answer_pool
 
 
 class ConvolutionModel(LanguageModel):
@@ -200,18 +195,13 @@ class ConvolutionModel(LanguageModel):
         # embedding.params = []
         # embedding.updates = []
 
-        # dropout
-        dropout = Dropout(0.5)
-        question_dropout = dropout(question_embedding)
-        answer_dropout = dropout(answer_embedding)
-
         # dense
         dense = TimeDistributed(Dense(self.model_params.get('n_hidden', 200),
                                       # activity_regularizer=regularizers.activity_l1(1e-4),
                                       # W_regularizer=regularizers.l1(1e-4),
                                       activation='tanh'))
-        question_dense = dropout(dense(question_dropout))
-        answer_dense = dropout(dense(answer_dropout))
+        question_dense = dense(question_embedding)
+        answer_dense = dense(answer_embedding)
 
         # cnn
         cnns = [Convolution1D(filter_length=filter_length,
@@ -223,23 +213,13 @@ class ConvolutionModel(LanguageModel):
         question_cnn = merge([cnn(question_dense) for cnn in cnns], mode='concat')
         answer_cnn = merge([cnn(answer_dense) for cnn in cnns], mode='concat')
 
-        # dropout
-        question_dropout = dropout(question_cnn)
-        answer_dropout = dropout(answer_cnn)
-
         # maxpooling
         maxpool = Lambda(lambda x: K.max(x, axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
         avepool = Lambda(lambda x: K.mean(x, axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
-        question_pool = maxpool(question_dropout)
-        answer_pool = maxpool(answer_dropout)
+        question_pool = maxpool(question_cnn)
+        answer_pool = maxpool(answer_cnn)
 
-        # activation
-        larger_dropout = Dropout(0.5)
-        activation = Activation('linear')
-        question_output = larger_dropout(activation(question_pool))
-        answer_output = larger_dropout(activation(answer_pool))
-
-        return question_output, answer_output
+        return question_pool, answer_pool
 
 
 class AttentionModel(LanguageModel):
@@ -283,10 +263,4 @@ class AttentionModel(LanguageModel):
         answer_b_rnn = b_rnn(answer_embedding)
         answer_pool = merge([maxpool(answer_f_rnn), maxpool(answer_b_rnn)], mode='concat', concat_axis=-1)
 
-        # activation
-        dropout = Dropout(0.5)
-        activation = Activation('linear')
-        question_output = activation(dropout(question_pool))
-        answer_output = activation(dropout(answer_pool))
-
-        return question_output, answer_output
+        return question_pool, answer_pool
