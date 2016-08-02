@@ -219,7 +219,7 @@ if __name__ == '__main__':
         'question_len': 50,
         'answer_len': 100,
         'n_words': 22353,  # len(vocabulary) + 1
-        'margin': 0.2,
+        'margin': 0.009,
 
         'training_params': {
             'save_every': 1,
