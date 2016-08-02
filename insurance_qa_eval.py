@@ -165,11 +165,11 @@ class Evaluator:
                 question = self.padq([d['question']] * len(indices))
 
                 n_good = len(d['good'])
-                sims = model.predict([question, answers], batch_size=500).flatten()
+                sims = model.predict([question, answers])
                 r = rankdata(sims, method='max')
 
-                max_r = np.argmax(r)
-                max_n = np.argmax(r[:n_good])
+                max_r = np.argmax(sims)
+                max_n = np.argmax(sims[:n_good])
 
                 # print(' '.join(self.revert(d['question'])))
                 # print(' '.join(self.revert(self.answers[indices[max_r]])))
@@ -219,18 +219,18 @@ if __name__ == '__main__':
         'question_len': 50,
         'answer_len': 100,
         'n_words': 22353,  # len(vocabulary) + 1
-        'margin': 0.009,
+        'margin': 0.02,
 
         'training_params': {
             'save_every': 1,
             'batch_size': 20,
-            'nb_epoch': 10,
-            'validation_split': 0.2,
+            'nb_epoch': 50,
+            'validation_split': 0.1,
             'optimizer': Adam(clipnorm=1e-2),
         },
 
         'model_params': {
-            'n_embed_dims': 1000,
+            'n_embed_dims': 100,
             'n_hidden': 200,
 
             # convolution
@@ -240,8 +240,8 @@ if __name__ == '__main__':
             # recurrent
             'n_lstm_dims': 141,  # * 2
 
-            'initial_embed_weights': np.load('models/word2vec_1000_dim.h5'),
-            'similarity_dropout': 0.2,
+            'initial_embed_weights': np.load('models/word2vec_100_dim.h5'),
+            'similarity_dropout': 0.5,
         },
 
         'similarity_params': {
@@ -255,8 +255,8 @@ if __name__ == '__main__':
     evaluator = Evaluator(conf)
 
     ##### Define model ######
-    model = EmbeddingModel(conf)
-    optimizer = conf.get('training_params', dict()).get('optimizer', 'adam')
+    model = AttentionModel(conf)
+    optimizer = conf.get('training_params', dict()).get('optimizer', 'rmsprop')
     model.compile(optimizer=optimizer)
 
     # save embedding layer
@@ -271,7 +271,7 @@ if __name__ == '__main__':
 
     # evaluate mrr for a particular epoch
     evaluator.load_epoch(model, best_loss['epoch'])
-    # evaluator.load_epoch(model, 68)
+    # evaluator.load_epoch(model, 31)
     evaluator.get_mrr(model, evaluate_all=True)
     # for epoch in range(1, 100):
     #     print('Epoch %d' % epoch)

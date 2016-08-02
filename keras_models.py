@@ -3,13 +3,11 @@ from __future__ import print_function
 from abc import abstractmethod
 
 from keras.engine import Input
-from keras.layers import merge, Embedding, Dropout, Convolution1D, Lambda, Activation, LSTM, Dense, TimeDistributed, \
-    ActivityRegularization, constraints, regularizers
+from keras.layers import merge, Embedding, Dropout, Convolution1D, Lambda, LSTM, Dense, TimeDistributed, constraints
 from keras import backend as K
 from keras.models import Model
 
 import numpy as np
-from keras.regularizers import EigenvalueRegularizer
 
 from attention_lstm import AttentionLSTM
 
@@ -72,7 +70,7 @@ class LanguageModel:
 
         axis = lambda a: len(a._keras_shape) - 1
         dot = lambda a, b: K.batch_dot(a, b, axes=axis(a))
-        l2_norm = lambda a, b: K.sqrt(K.sum((a - b) ** 2, axis=axis(a), keepdims=True))
+        l2_norm = lambda a, b: K.sqrt(((a - b) ** 2).sum())
 
         if similarity == 'cosine':
             return lambda x: dot(x[0], x[1]) / K.sqrt(dot(x[0], x[0]) * dot(x[1], x[1]))
@@ -107,7 +105,7 @@ class LanguageModel:
             similarity = self.get_similarity()
             qa_model = merge([dropout(question_output), dropout(answer_output)],
                              mode=similarity, output_shape=lambda _: (None, 1))
-            self._qa_model = Model(input=[self.question, self.get_answer()], output=[qa_model])
+            self._qa_model = Model(input=[self.question, self.get_answer()], output=qa_model)
 
         return self._qa_model
 
@@ -132,8 +130,9 @@ class LanguageModel:
         y = np.zeros(shape=(x[0].shape[0],))
         return self.training_model.fit(x, y, **kwargs)
 
-    def predict(self, x, **kwargs):
-        return self.prediction_model.predict(x, **kwargs)
+    def predict(self, x):
+        assert self.prediction_model is not None and isinstance(self.prediction_model, Model)
+        return self.prediction_model.predict_on_batch(x)
 
     def save_weights(self, file_name, **kwargs):
         assert self.prediction_model is not None, 'Must compile the model before saving weights'
@@ -154,7 +153,7 @@ class EmbeddingModel(LanguageModel):
         weights = weights if weights is None else [weights]
         embedding = Embedding(input_dim=self.config['n_words'],
                               output_dim=self.model_params.get('n_embed_dims', 100),
-                              W_constraint=constraints.nonneg(),
+                              # W_constraint=constraints.nonneg(),
                               weights=weights,
                               mask_zero=True)
         question_embedding = embedding(question)
@@ -209,8 +208,8 @@ class ConvolutionModel(LanguageModel):
         answer_cnn = merge([cnn(answer_dense) for cnn in cnns], mode='concat')
 
         # maxpooling
-        maxpool = Lambda(lambda x: K.max(x, axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
-        avepool = Lambda(lambda x: K.mean(x, axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
+        maxpool = Lambda(lambda x: K.max(x, axis=-1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
+        avepool = Lambda(lambda x: K.mean(x, axis=-1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
         question_pool = maxpool(question_cnn)
         answer_pool = maxpool(answer_cnn)
 
