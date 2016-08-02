@@ -26,7 +26,7 @@ class Evaluator:
         self.path = data_path
         self.conf = dict() if conf is None else conf
         self.params = conf.get('training_params', dict())
-        self.answers = self.load('answers')  # self.load('generated')
+        self.answers = self.load('answers') # self.load('generated')
         self._vocab = None
         self._reverse_vocab = None
         self._eval_sets = None
@@ -171,7 +171,7 @@ class Evaluator:
                 max_r = np.argmax(r)
                 max_n = np.argmax(r[:n_good])
 
-                # print(' '.join(self.revegrt(d['question'])))
+                # print(' '.join(self.revert(d['question'])))
                 # print(' '.join(self.revert(self.answers[indices[max_r]])))
                 # print(' '.join(self.revert(self.answers[indices[max_n]])))
 
@@ -224,13 +224,13 @@ if __name__ == '__main__':
         'training_params': {
             'save_every': 1,
             'batch_size': 20,
-            'nb_epoch': 100,
+            'nb_epoch': 10,
             'validation_split': 0.2,
             'optimizer': Adam(clipnorm=1e-2),
         },
 
         'model_params': {
-            'n_embed_dims': 100,
+            'n_embed_dims': 1000,
             'n_hidden': 200,
 
             # convolution
@@ -240,12 +240,12 @@ if __name__ == '__main__':
             # recurrent
             'n_lstm_dims': 141,  # * 2
 
-            'initial_embed_weights': np.load('models/word2vec_100_dim.h5'),
+            'initial_embed_weights': np.load('models/word2vec_1000_dim.h5'),
             'similarity_dropout': 0.2,
         },
 
         'similarity_params': {
-            'mode': 'cosine',
+            'mode': 'gesd',
             'gamma': 1,
             'c': 1,
             'd': 2,

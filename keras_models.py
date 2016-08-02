@@ -103,12 +103,11 @@ class LanguageModel:
 
         if self._qa_model is None:
             question_output, answer_output = self._models
-
+            dropout = Dropout(self.similarity_params.get('similarity_dropout', 0.2))
             similarity = self.get_similarity()
-            qa_model = merge([question_output, answer_output], mode=similarity, output_shape=lambda _: (None, 1))
-            dropout = Dropout(self.similarity_params.get('similarity_dropout', 0.2))(qa_model)
-
-            self._qa_model = Model(input=[self.question, self.get_answer()], output=[dropout])
+            qa_model = merge([dropout(question_output), dropout(answer_output)],
+                             mode=similarity, output_shape=lambda _: (None, 1))
+            self._qa_model = Model(input=[self.question, self.get_answer()], output=[qa_model])
 
         return self._qa_model
 
