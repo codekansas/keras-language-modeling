@@ -68,12 +68,11 @@ class LanguageModel:
         params = self.similarity_params
         similarity = params['mode']
 
-        axis = lambda a: len(a._keras_shape) - 1
-        dot = lambda a, b: K.batch_dot(a, b, axes=axis(a))
-        l2_norm = lambda a, b: K.sqrt(((a - b) ** 2).sum())
+        dot = lambda a, b: K.batch_dot(a, b, axes=1)
+        l2_norm = lambda a, b: K.sqrt(K.sum((a - b) ** 2, axis=1, keepdims=True))
 
         if similarity == 'cosine':
-            return lambda x: dot(x[0], x[1]) / K.sqrt(dot(x[0], x[0]) * dot(x[1], x[1]))
+            return lambda x: dot(x[0], x[1]) / K.maximum(K.sqrt(dot(x[0], x[0]) * dot(x[1], x[1])), K.epsilon())
         elif similarity == 'polynomial':
             return lambda x: (params['gamma'] * dot(x[0], x[1]) + params['c']) ** params['d']
         elif similarity == 'sigmoid':
@@ -102,10 +101,12 @@ class LanguageModel:
         if self._qa_model is None:
             question_output, answer_output = self._models
             dropout = Dropout(self.similarity_params.get('similarity_dropout', 0.2))
-            similarity = self.get_similarity()
+            similarity = lambda x: K.expand_dims(self.get_similarity()(x), 1)
             qa_model = merge([dropout(question_output), dropout(answer_output)],
                              mode=similarity, output_shape=lambda _: (None, 1))
+                             # mode='cos', dot_axes=1)
             self._qa_model = Model(input=[self.question, self.get_answer()], output=qa_model)
+            print(self._qa_model.output_shape)
 
         return self._qa_model
 
@@ -119,15 +120,15 @@ class LanguageModel:
                      mode=lambda x: K.relu(self.config['margin'] - x[0] + x[1]),
                      output_shape=lambda x: x[0])
 
+        self.prediction_model = Model(input=[self.question, self.answer_good], output=good_similarity)
+        self.prediction_model.compile(loss=lambda y_true, y_pred: y_pred, optimizer=optimizer, **kwargs)
+
         self.training_model = Model(input=[self.question, self.answer_good, self.answer_bad], output=loss)
         self.training_model.compile(loss=lambda y_true, y_pred: y_pred, optimizer=optimizer, **kwargs)
 
-        self.prediction_model = Model(input=[self.question, self.answer_good], output=good_similarity)
-        self.prediction_model.compile(loss='binary_crossentropy', optimizer=optimizer, **kwargs)
-
     def fit(self, x, **kwargs):
         assert self.training_model is not None, 'Must compile the model before fitting data'
-        y = np.zeros(shape=(x[0].shape[0],))
+        y = np.zeros(shape=(x[0].shape[0],)) # doesn't get used
         return self.training_model.fit(x, y, **kwargs)
 
     def predict(self, x):
