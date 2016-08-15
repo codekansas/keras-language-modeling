@@ -2,9 +2,15 @@
 
 Some code for doing language modeling with Keras, in particular for question-answering tasks. I wrote a very long blog post that explains how a lot of this works, which can be found [here](http://benjaminbolte.com/blog/2016/keras-language-modeling.html).
 
+### Stuff that might be of interest
+
+ - `attention_lstm.py`: Attentional LSTM, based on one of the papers referenced in the blog post and others. One application used it for [image captioning](http://arxiv.org/pdf/1502.03044.pdf). It is initialized with an attention vector which provides the attention component for the neural network.
+ - `insurance_qa_eval.py`: Evaluation framework for the InsuranceQA dataset. To get this working, clone the [data repository](https://github.com/codekansas/insurance_qa_python) and set the `INSURANCE_QA` environment variable to the cloned repository. Changing `config` will adjust how the model is trained.
+ - `keras-language-model.py`: The `LanguageModel` class uses the `config` settings to generate a training model and a testing model. The model can be trained by passing a question vector, a ground truth answer vector, and a bad answer vector to `fit`. Then `predict` calculates the similarity between a question and answer. Override the `build` method with whatever language model you want to get a trainable model. Examples are provided at the bottom, including the `EmbeddingModel`, `ConvolutionModel`, and `RecurrentModel`.
+
 ### Getting Started
 
-````
+````bash
 # Install Keras (may also need dependencies)
 git clone https://github.com/fchollet/keras
 cd keras
@@ -25,11 +31,15 @@ The runnable program is `insurance_qa_eval.py`. This will create a `models/` dir
 
 Finally, my setup (which I think is pretty common) is to have an SSD with my operating system, and an HDD with larger data files. So I would recommend creating a `models/` symlink from the project directory to somewhere in your HDD, if you have a similar setup.
 
-### Stuff that might be of interest
+### Serving to a port
 
- - `attention_lstm.py`: Attentional LSTM, based on one of the papers referenced in the blog post and others. One application used it for [image captioning](http://arxiv.org/pdf/1502.03044.pdf). It is initialized with an attention vector which provides the attention component for the neural network.
- - `insurance_qa_eval.py`: Evaluation framework for the InsuranceQA dataset. To get this working, clone the [data repository](https://github.com/codekansas/insurance_qa_python) and set the `INSURANCE_QA` environment variable to the cloned repository. Changing `config` will adjust how the model is trained.
- - `keras-language-model.py`: The `LanguageModel` class uses the `config` settings to generate a training model and a testing model. The model can be trained by passing a question vector, a ground truth answer vector, and a bad answer vector to `fit`. Then `predict` calculates the similarity between a question and answer. Override the `build` method with whatever language model you want to get a trainable model. Examples are provided at the bottom, including the `EmbeddingModel`, `ConvolutionModel`, and `RecurrentModel`.
+I added a command line argument that uses Flask to serve to a port. Once you've [installed Flask](http://flask.pocoo.org/docs/0.11/installation/), you can run:
+
+````bash
+python insurance_qa_eval.py serve
+````
+
+This is useful in combination with [ngrok](https://ngrok.com/) for monitoring training progress away from your desktop.
 
 ### Additionally
 
