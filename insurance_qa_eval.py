@@ -16,7 +16,7 @@ random.seed(42)
 
 
 class Evaluator:
-    def __init__(self, conf, model=None, optimizer=None):
+    def __init__(self, conf, model, optimizer=None):
         try:
             data_path = os.environ['INSURANCE_QA']
         except KeyError:
@@ -24,7 +24,7 @@ class Evaluator:
             sys.exit(1)
         if isinstance(conf, str):
             conf = json.load(open(conf, 'rb'))
-        self.model = conf['model'](conf) if model is None else model
+        self.model = model(conf)
         self.path = data_path
         self.conf = conf
         self.params = conf['training']
