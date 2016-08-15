@@ -136,7 +136,7 @@ class Evaluator:
             if hist.history['val_loss'][0] < val_loss['loss']:
                 val_loss = {'loss': hist.history['val_loss'][0], 'epoch': i}
             log('%s -- Epoch %d ' % (self.get_time(), i) +
-                'Loss = %.4f ' % hist.history['val_loss'][0] +
+                'Loss = %.4f, Validation Loss = %.4f ' % (hist.history['loss'][0], hist.history['val_loss'][0]) +
                 '(Best: Loss = %.4f, Epoch = %d)' % (val_loss['loss'], val_loss['epoch']))
 
             self.save_epoch(i)
@@ -207,6 +207,26 @@ class Evaluator:
 
 
 if __name__ == '__main__':
+    if len(sys.argv) >= 2 and sys.argv[1] == 'serve':
+        from flask import Flask
+        app = Flask(__name__)
+        port = 5000
+        lines = list()
+        def log(x):
+            lines.append(x)
+
+        @app.route('/')
+        def home():
+            return ('<html><body><h1>Training Log</h1>' +
+                    ''.join(['<code>{}</code><br/>'.format(line) for line in lines]) +
+                    '</body></html>')
+
+        def start_server():
+            app.run(debug=False, use_evalex=False, port=port)
+
+        thread.start_new_thread(start_server, tuple())
+        print('Serving to port %d' % port, file=sys.stderr)
+
     import numpy as np
 
     conf = {
@@ -229,26 +249,6 @@ if __name__ == '__main__':
             'd': 2,
         }
     }
-
-    if len(sys.argv) >= 2 and sys.argv[1] == 'serve':
-        from flask import Flask
-        app = Flask(__name__)
-        port = 5000
-        lines = list()
-        def log(x):
-            lines.append(x)
-
-        @app.route('/')
-        def home():
-            return ('<html><body><h1>Training Log</h1>' +
-                    ''.join(['<code>{}</code><br/>'.format(line) for line in lines]) +
-                    '</body></html>')
-
-        def start_server():
-            app.run(debug=False, use_evalex=False, port=port)
-
-        thread.start_new_thread(start_server, tuple())
-        print('Serving to port %d' % port, file=sys.stderr)
 
     from keras_models import AttentionModel
     evaluator = Evaluator(conf, model=AttentionModel, optimizer='rmsprop')
