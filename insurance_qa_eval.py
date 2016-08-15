@@ -9,107 +9,14 @@ from time import strftime, gmtime, time
 import pickle
 import json
 
-from keras.callbacks import ProgbarLogger
-from keras.utils.generic_utils import Progbar
+import thread
 from scipy.stats import rankdata
 
 random.seed(42)
 
 
-class ProgbarError(Progbar):
-    def update(self, current, values=[], force=False):
-        '''
-            @param current: index of current step
-            @param values: list of tuples (name, value_for_last_step).
-            The progress bar will display averages for these values.
-            @param force: force visual progress update
-        '''
-        for k, v in values:
-            if k not in self.sum_values:
-                self.sum_values[k] = [v * (current - self.seen_so_far), current - self.seen_so_far]
-                self.unique_values.append(k)
-            else:
-                self.sum_values[k][0] += v * (current - self.seen_so_far)
-                self.sum_values[k][1] += (current - self.seen_so_far)
-        self.seen_so_far = current
-
-        now = time()
-        if self.verbose == 1:
-            if not force and (now - self.last_update) < self.interval:
-                return
-
-            prev_total_width = self.total_width
-            sys.stderr.write("\b" * prev_total_width)
-            sys.stderr.write("\r")
-
-            numdigits = int(np.floor(np.log10(self.target))) + 1
-            barstr = '%%%dd/%%%dd [' % (numdigits, numdigits)
-            bar = barstr % (current, self.target)
-            prog = float(current) / self.target
-            prog_width = int(self.width * prog)
-            if prog_width > 0:
-                bar += ('=' * (prog_width-1))
-                if current < self.target:
-                    bar += '>'
-                else:
-                    bar += '='
-            bar += ('.' * (self.width - prog_width))
-            bar += ']'
-            sys.stderr.write(bar)
-            self.total_width = len(bar)
-
-            if current:
-                time_per_unit = (now - self.start) / current
-            else:
-                time_per_unit = 0
-            eta = time_per_unit * (self.target - current)
-            info = ''
-            if current < self.target:
-                info += ' - ETA: %ds' % eta
-            else:
-                info += ' - %ds' % (now - self.start)
-            for k in self.unique_values:
-                info += ' - %s:' % k
-                if type(self.sum_values[k]) is list:
-                    avg = self.sum_values[k][0] / max(1, self.sum_values[k][1])
-                    if abs(avg) > 1e-3:
-                        info += ' %.4f' % avg
-                    else:
-                        info += ' %.4e' % avg
-                else:
-                    info += ' %s' % self.sum_values[k]
-
-            self.total_width += len(info)
-            if prev_total_width > self.total_width:
-                info += ((prev_total_width - self.total_width) * " ")
-
-            sys.stderr.write(info)
-            sys.stderr.flush()
-
-            if current >= self.target:
-                sys.stderr.write("\n")
-
-        if self.verbose == 2:
-            if current >= self.target:
-                info = '%ds' % (now - self.start)
-                for k in self.unique_values:
-                    info += ' - %s:' % k
-                    avg = self.sum_values[k][0] / max(1, self.sum_values[k][1])
-                    if avg > 1e-3:
-                        info += ' %.4f' % avg
-                    else:
-                        info += ' %.4e' % avg
-                sys.stderr.write(info + "\n")
-
-        self.last_update = now
-
-
-class ProgbarErrorLogger(ProgbarLogger):
-    def on_epoch_begin(self, epoch, logs={}):
-        if self.verbose:
-            print('Epoch %d/%d' % (epoch + 1, self.nb_epoch), file=sys.stderr)
-            self.progbar = ProgbarError(target=self.params['nb_sample'])
-        self.seen = 0
+def log(x):
+    print(x)
 
 
 class Evaluator:
@@ -189,7 +96,6 @@ class Evaluator:
         return strftime('%Y-%m-%d %H:%M:%S', gmtime())
 
     def train(self):
-        print('Began training at %s' % self.get_time())
         batch_size = self.params['batch_size']
         nb_epoch = self.params['nb_epoch']
         validation_split = self.params['validation_split']
@@ -205,16 +111,17 @@ class Evaluator:
             questions += [q['question']] * len(q['answers'])
             good_answers += [self.answers[i] for i in q['answers']]
             indices += [j] * len(q['answers'])
+        log('Began training at %s on %d samples' % (self.get_time(), len(questions)))
 
         questions = self.padq(questions)
         good_answers = self.pada(good_answers)
 
         val_loss = {'loss': 1., 'epoch': 0}
 
-        def get_bad_samples(indices, top_50):
-            return [self.answers[random.choice(top_50[i])] for i in indices]
+        # def get_bad_samples(indices, top_50):
+        #     return [self.answers[random.choice(top_50[i])] for i in indices]
 
-        for i in range(1, nb_epoch):
+        for i in range(1, nb_epoch+1):
             # sample from all answers to get bad answers
             # if i % 2 == 0:
             #     bad_answers = self.pada(random.sample(self.answers.values(), len(good_answers)))
@@ -222,14 +129,15 @@ class Evaluator:
             #     bad_answers = self.pada(get_bad_samples(indices, top_50))
             bad_answers = self.pada(random.sample(self.answers.values(), len(good_answers)))
 
+            print('Fitting epoch %d' % i, file=sys.stderr)
             hist = self.model.fit([questions, good_answers, bad_answers], nb_epoch=1, batch_size=batch_size,
-                             validation_split=validation_split, verbose=0, callbacks=[ProgbarErrorLogger()])
-            print('%s -- Epoch %d' % (self.get_time(), i), end='')
-            print(' Loss = {}'.format(hist.history['val_loss'][0]))
+                             validation_split=validation_split, verbose=0)
 
             if hist.history['val_loss'][0] < val_loss['loss']:
                 val_loss = {'loss': hist.history['val_loss'][0], 'epoch': i}
-            print('Best: Loss = {}, Epoch = {}'.format(val_loss['loss'], val_loss['epoch']))
+            log('%s -- Epoch %d ' % (self.get_time(), i) +
+                'Loss = %.4f ' % hist.history['val_loss'][0] +
+                '(Best: Loss = %.4f, Epoch = %.4f)' % (val_loss['loss'], val_loss['epoch']))
 
             self.save_epoch(i)
 
@@ -240,10 +148,10 @@ class Evaluator:
     def prog_bar(self, so_far, total, n_bars=20):
         n_complete = int(so_far * n_bars / total)
         if n_complete >= n_bars - 1:
-            print('\r[' + '=' * n_bars + ']', end='')
+            print('\r[' + '=' * n_bars + ']', end='', file=sys.stderr)
         else:
             s = '\r[' + '=' * (n_complete - 1) + '>' + '.' * (n_bars - n_complete) + ']'
-            print(s, end='')
+            print(s, end='', file=sys.stderr)
 
     def eval_sets(self):
         if self._eval_sets is None:
@@ -322,6 +230,26 @@ if __name__ == '__main__':
         }
     }
 
+    if len(sys.argv) >= 2 and sys.argv[1] == 'serve':
+        from flask import Flask
+        app = Flask(__name__)
+        port = 5000
+        lines = list()
+        def log(x):
+            lines.append(x)
+
+        @app.route('/')
+        def home():
+            return ('<html><body><h1>Training Log</h1>' +
+                    ''.join(['<code>{}</code><br/>'.format(line) for line in lines]) +
+                    '</body></html>')
+
+        def start_server():
+            app.run(debug=False, use_evalex=False, port=port)
+
+        thread.start_new_thread(start_server, tuple())
+        print('Serving to port %d' % port, file=sys.stderr)
+
     from keras_models import AttentionModel
     evaluator = Evaluator(conf, model=AttentionModel, optimizer='rmsprop')
 
@@ -331,11 +259,11 @@ if __name__ == '__main__':
     # evaluate mrr for a particular epoch
     evaluator.load_epoch(best_loss['epoch'])
     top1, mrr = evaluator.get_score(verbose=False)
-    print(' - Top-1 Precision:')
-    print('   - %.3f on test 1' % top1[0])
-    print('   - %.3f on test 2' % top1[1])
-    print('   - %.3f on dev' % top1[2])
-    print(' - MRR:')
-    print('   - %.3f on test 1' % mrr[0])
-    print('   - %.3f on test 2' % mrr[1])
-    print('   - %.3f on dev' % mrr[2])
+    log(' - Top-1 Precision:')
+    log('   - %.3f on test 1' % top1[0])
+    log('   - %.3f on test 2' % top1[1])
+    log('   - %.3f on dev' % top1[2])
+    log(' - MRR:')
+    log('   - %.3f on test 1' % mrr[0])
+    log('   - %.3f on test 2' % mrr[1])
+    log('   - %.3f on dev' % mrr[2])
