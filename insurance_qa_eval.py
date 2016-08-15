@@ -137,7 +137,7 @@ class Evaluator:
                 val_loss = {'loss': hist.history['val_loss'][0], 'epoch': i}
             log('%s -- Epoch %d ' % (self.get_time(), i) +
                 'Loss = %.4f ' % hist.history['val_loss'][0] +
-                '(Best: Loss = %.4f, Epoch = %.4f)' % (val_loss['loss'], val_loss['epoch']))
+                '(Best: Loss = %.4f, Epoch = %d)' % (val_loss['loss'], val_loss['epoch']))
 
             self.save_epoch(i)
 
