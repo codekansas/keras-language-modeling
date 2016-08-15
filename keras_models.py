@@ -146,11 +146,9 @@ class EmbeddingModel(LanguageModel):
 
         # add embedding layers
         weights = np.load(self.config['initial_embed_weights'])
-        weights = weights if weights is None else [weights]
         embedding = Embedding(input_dim=self.config['n_words'],
                               output_dim=weights.shape[1],
-                              weights=weights,
-                              mask_zero=True)
+                              weights=[weights])
         question_embedding = embedding(question)
         answer_embedding = embedding(answer)
 
@@ -171,10 +169,9 @@ class ConvolutionModel(LanguageModel):
 
         # add embedding layers
         weights = np.load(self.config['initial_embed_weights'])
-        weights = weights if weights is None else [weights]
         embedding = Embedding(input_dim=self.config['n_words'],
                               output_dim=weights.shape[1],
-                              weights=weights)
+                              weights=[weights])
         question_embedding = embedding(question)
         answer_embedding = embedding(answer)
 
@@ -202,10 +199,9 @@ class ConvolutionalLSTM(LanguageModel):
 
         # add embedding layers
         weights = np.load(self.config['initial_embed_weights'])
-        weights = weights if weights is None else [weights]
         embedding = Embedding(input_dim=self.config['n_words'],
                               output_dim=weights.shape[1],
-                              weights=weights)
+                              weights=[weights])
         question_embedding = embedding(question)
         answer_embedding = embedding(answer)
 
@@ -242,12 +238,10 @@ class AttentionModel(LanguageModel):
 
         # add embedding layers
         weights = np.load(self.config['initial_embed_weights'])
-        weights = weights if weights is None else [weights]
         embedding = Embedding(input_dim=self.config['n_words'],
                               output_dim=weights.shape[1],
-                              weights=weights,
-                              # mask_zero=True)
-                              mask_zero=False)
+                              # mask_zero=True,
+                              weights=[weights])
         question_embedding = embedding(question)
         answer_embedding = embedding(answer)
 

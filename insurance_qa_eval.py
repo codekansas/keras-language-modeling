@@ -9,7 +9,6 @@ from time import strftime, gmtime
 import pickle
 import json
 
-from keras.optimizers import SGD
 from scipy.stats import rankdata
 
 random.seed(42)
@@ -97,7 +96,7 @@ class Evaluator:
         validation_split = self.params['validation_split']
 
         training_set = self.load('train')
-        top_50 = self.load('top_50')
+        # top_50 = self.load('top_50')
 
         questions = list()
         good_answers = list()
@@ -208,7 +207,7 @@ if __name__ == '__main__':
         'n_words': 22353,
         'question_len': 150,
         'answer_len': 150,
-        'margin': 0.05,
+        'margin': 0.2,
         'initial_embed_weights': 'word2vec_100_dim.embeddings',
 
         'training': {
@@ -225,12 +224,20 @@ if __name__ == '__main__':
         }
     }
 
-    from keras_models import ConvolutionModel
-    evaluator = Evaluator(conf, model=ConvolutionModel, optimizer=SGD(lr=0.001))
+    from keras_models import AttentionModel
+    evaluator = Evaluator(conf, model=AttentionModel, optimizer='rmsprop')
 
     # train the model
     best_loss = evaluator.train()
 
     # evaluate mrr for a particular epoch
     evaluator.load_epoch(best_loss['epoch'])
-    evaluator.get_score(verbose=False)
+    top1, mrr = evaluator.get_score(verbose=False)
+    print(' - Top-1 Precision:')
+    print('   - %.3f on test 1' % top1[0])
+    print('   - %.3f on test 2' % top1[1])
+    print('   - %.3f on dev' % top1[2])
+    print(' - MRR:')
+    print('   - %.3f on test 1' % mrr[0])
+    print('   - %.3f on test 2' % mrr[1])
+    print('   - %.3f on dev' % mrr[2])
