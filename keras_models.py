@@ -154,6 +154,7 @@ class EmbeddingModel(LanguageModel):
 
         # maxpooling
         maxpool = Lambda(lambda x: K.max(x, axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
+        maxpool.supports_masking = True
         question_pool = maxpool(question_embedding)
         answer_pool = maxpool(answer_embedding)
 
@@ -185,6 +186,7 @@ class ConvolutionModel(LanguageModel):
 
         # maxpooling
         maxpool = Lambda(lambda x: K.max(x, axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
+        maxpool.supports_masking = True
         enc = Dense(100, activation='tanh')
         question_pool = enc(maxpool(question_cnn))
         answer_pool = enc(maxpool(answer_cnn))
@@ -225,6 +227,7 @@ class ConvolutionalLSTM(LanguageModel):
         answer_cnn = merge([cnn(answer_pool) for cnn in cnns], mode='concat')
 
         maxpool = Lambda(lambda x: K.max(x, axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
+        maxpool.supports_masking = True
         question_pool = maxpool(question_cnn)
         answer_pool = maxpool(answer_cnn)
 
@@ -253,6 +256,7 @@ class AttentionModel(LanguageModel):
 
         # maxpooling
         maxpool = Lambda(lambda x: K.max(x, axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
+        maxpool.supports_masking = True
         question_pool = merge([maxpool(question_f_rnn), maxpool(question_b_rnn)], mode='concat', concat_axis=-1)
 
         # answer rnn part
