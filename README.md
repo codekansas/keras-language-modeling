@@ -21,8 +21,18 @@ git clone https://github.com/codekansas/insurance_qa_python
 export INSURANCE_QA=$(pwd)/insurance_qa_python
 
 # Run insurance_qa_eval.py
+git clone https://github.com/codekansas/keras-language-modeling
 cd keras-language-modeling/
 python insurance_qa_eval.py
+````
+
+Alternatively, I wrote a script to get started on a Google Cloud Platform instance (Ubuntu 16.04) which can be run via
+
+````bash
+cd ~
+git clone https://github.com/codekansas/keras-language-modeling
+cd keras-language-modeling
+source install.py
 ````
 
 I've been working on making these models available out-of-the-box. You need to install the Git branch of Keras (and maybe make some modifications) in order to run some of these models; the Keras project can be found [here](https://github.com/fchollet/keras).
