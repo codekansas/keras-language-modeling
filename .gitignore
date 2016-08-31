@@ -17,3 +17,7 @@ treq_eval*
 *.dict
 *.model
 
+# virtual environments
+venv/
+ENV/
+

@@ -233,7 +233,7 @@ if __name__ == '__main__':
         'n_words': 22353,
         'question_len': 150,
         'answer_len': 150,
-        'margin': 0.2,
+        'margin': 0.05,
         'initial_embed_weights': 'word2vec_100_dim.embeddings',
 
         'training': {
@@ -243,15 +243,15 @@ if __name__ == '__main__':
         },
 
         'similarity': {
-            'mode': 'gesd',
+            'mode': 'cosine',
             'gamma': 1,
             'c': 1,
             'd': 2,
         }
     }
 
-    from keras_models import AttentionModel
-    evaluator = Evaluator(conf, model=AttentionModel, optimizer='rmsprop')
+    from keras_models import EmbeddingModel
+    evaluator = Evaluator(conf, model=EmbeddingModel, optimizer='sgd')
 
     # train the model
     best_loss = evaluator.train()
