@@ -21,3 +21,7 @@ treq_eval*
 venv/
 ENV/
 
+# keras install
+Keras.*
+dist/
+
