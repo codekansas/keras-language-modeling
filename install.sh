@@ -4,7 +4,7 @@
 # Ubuntu 16.04 (as many CPUs as you like)
 
 # exit on failure
-set -e
+# set -e
 
 # make models directory
 if [ ! -d "models/" ]; then
@@ -41,6 +41,9 @@ fi
 cd $KERAS_DIRECTORY
 python setup.py install
 cd -
+if [ ! -d ~/.keras ]; then
+  mkdir ~/.keras
+fi
 echo '{"epsilon": 1e-07, "floatx": "float32", "backend": "tensorflow"}' > ~/.keras/keras.json
 
 # download insurance qa files

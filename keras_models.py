@@ -97,7 +97,7 @@ class LanguageModel:
 
         if self._qa_model is None:
             question_output, answer_output = self._models
-            dropout = Dropout(self.params.get('similarity_dropout', 0.2))
+            dropout = Dropout(self.params.get('dropout', 0.2))
             similarity = self.get_similarity()
             qa_model = merge([dropout(question_output), dropout(answer_output)],
                              mode=similarity, output_shape=lambda _: (None, 1))
@@ -148,6 +148,8 @@ class EmbeddingModel(LanguageModel):
         weights = np.load(self.config['initial_embed_weights'])
         embedding = Embedding(input_dim=self.config['n_words'],
                               output_dim=weights.shape[1],
+                              mask_zero=True,
+                              # dropout=0.2,
                               weights=[weights])
         question_embedding = embedding(question)
         answer_embedding = embedding(answer)
