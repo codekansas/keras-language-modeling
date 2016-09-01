@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 
+"""
+Command-line script for generating embeddings
+Useful if you want to generate larger embeddings for some models
+"""
+
 from __future__ import print_function
 
 import os
@@ -27,8 +32,8 @@ except KeyError:
 
 # parse arguments
 parser = argparse.ArgumentParser(description='Generate embeddings for the InsuranceQA dataset')
-parser.add_argument('--iter', metavar='N', type=int, nargs=1, default=10, help='number of times to run')
-parser.add_argument('--size', metavar='D', type=int, nargs=1, default=100, help='dimensions in embedding')
+parser.add_argument('--iter', metavar='N', type=int, default=10, help='number of times to run')
+parser.add_argument('--size', metavar='D', type=int, default=100, help='dimensions in embedding')
 args = parser.parse_args()
 
 # configure logging
