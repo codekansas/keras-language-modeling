@@ -210,7 +210,7 @@ class ConvolutionalLSTM(LanguageModel):
         answer_embedding = embedding(answer)
 
         f_rnn = LSTM(141, return_sequences=True, consume_less='mem')
-        b_rnn = LSTM(141, return_sequences=True, consume_less='mem')
+        b_rnn = LSTM(141, return_sequences=True, consume_less='mem', go_backwards=True)
 
         qf_rnn = f_rnn(question_embedding)
         qb_rnn = b_rnn(question_embedding)
