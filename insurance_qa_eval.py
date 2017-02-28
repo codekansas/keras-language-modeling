@@ -159,6 +159,8 @@ class Evaluator:
         return self._eval_sets
 
     def get_score(self, verbose=False):
+        top1_ls = []
+        mrr_ls = []
         for name, data in self.eval_sets().items():
             print('----- %s -----' % name)
 
@@ -204,6 +206,9 @@ class Evaluator:
             del data
             print('Top-1 Precision: %f' % top1)
             print('MRR: %f' % mrr)
+            top1_ls.append(top1)
+            mrr_ls.append(mrr)
+        return top1_ls, mrr_ls
 
 
 if __name__ == '__main__':
