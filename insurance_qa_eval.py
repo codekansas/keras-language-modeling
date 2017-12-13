@@ -130,8 +130,8 @@ class Evaluator:
             bad_answers = self.pada(random.sample(self.answers.values(), len(good_answers)))
 
             print('Fitting epoch %d' % i, file=sys.stderr)
-            hist = self.model.fit([questions, good_answers, bad_answers], nb_epoch=1, batch_size=batch_size,
-                             validation_split=validation_split, verbose=1)
+            hist = self.model.fit([questions, good_answers, bad_answers], epochs=1, batch_size=batch_size,
+                                  validation_split=validation_split, verbose=1)
 
             if hist.history['val_loss'][0] < val_loss['loss']:
                 val_loss = {'loss': hist.history['val_loss'][0], 'epoch': i}
@@ -236,19 +236,19 @@ if __name__ == '__main__':
 
     conf = {
         'n_words': 22353,
-        'question_len': 20,
+        'question_len': 150,
         'answer_len': 150,
         'margin': 0.05,
         'initial_embed_weights': 'word2vec_100_dim.embeddings',
 
         'training': {
             'batch_size': 100,
-            'nb_epoch': 2000,
+            'nb_epoch': 1,
             'validation_split': 0.1,
         },
 
         'similarity': {
-            'mode': 'gesd',
+            'mode': 'cosine',
             'gamma': 1,
             'c': 1,
             'd': 2,
@@ -256,7 +256,7 @@ if __name__ == '__main__':
         }
     }
 
-    from keras_models import EmbeddingModel
+    from keras_models import EmbeddingModel, ConvolutionModel, ConvolutionalLSTM
     evaluator = Evaluator(conf, model=EmbeddingModel, optimizer='adam')
 
     # train the model

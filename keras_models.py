@@ -3,7 +3,7 @@ from __future__ import print_function
 from abc import abstractmethod
 
 from keras.engine import Input
-from keras.layers import merge, Embedding, Dropout, Convolution1D, Lambda, LSTM, Dense
+from keras.layers import merge, Embedding, Dropout, Conv1D, Lambda, LSTM, Dense, concatenate
 from keras import backend as K
 from keras.models import Model
 
@@ -99,9 +99,11 @@ class LanguageModel:
             question_output, answer_output = self._models
             dropout = Dropout(self.params.get('dropout', 0.2))
             similarity = self.get_similarity()
-            qa_model = merge([dropout(question_output), dropout(answer_output)],
-                             mode=similarity, output_shape=lambda _: (None, 1))
-            self._qa_model = Model(input=[self.question, self.get_answer()], output=qa_model, name='qa_model')
+            # qa_model = merge([dropout(question_output), dropout(answer_output)],
+            #                  mode=similarity, output_shape=lambda _: (None, 1))
+            qa_model = Lambda(similarity, output_shape=lambda _: (None, 1))([dropout(question_output),
+                                                                             dropout(answer_output)])
+            self._qa_model = Model(inputs=[self.question, self.get_answer()], outputs=qa_model, name='qa_model')
 
         return self._qa_model
 
@@ -111,14 +113,19 @@ class LanguageModel:
         good_similarity = qa_model([self.question, self.answer_good])
         bad_similarity = qa_model([self.question, self.answer_bad])
 
-        loss = merge([good_similarity, bad_similarity],
-                     mode=lambda x: K.relu(self.config['margin'] - x[0] + x[1]),
-                     output_shape=lambda x: x[0])
+        # loss = merge([good_similarity, bad_similarity],
+        #              mode=lambda x: K.relu(self.config['margin'] - x[0] + x[1]),
+        #              output_shape=lambda x: x[0])
 
-        self.prediction_model = Model(input=[self.question, self.answer_good], output=good_similarity, name='prediction_model')
+        loss = Lambda(lambda x: K.relu(self.config['margin'] - x[0] + x[1]),
+                      output_shape=lambda x: x[0])([good_similarity, bad_similarity])
+
+        self.prediction_model = Model(inputs=[self.question, self.answer_good], outputs=good_similarity,
+                                      name='prediction_model')
         self.prediction_model.compile(loss=lambda y_true, y_pred: y_pred, optimizer=optimizer, **kwargs)
 
-        self.training_model = Model(input=[self.question, self.answer_good, self.answer_bad], output=loss, name='training_model')
+        self.training_model = Model(inputs=[self.question, self.answer_good, self.answer_bad], outputs=loss,
+                                    name='training_model')
         self.training_model.compile(loss=lambda y_true, y_pred: y_pred, optimizer=optimizer, **kwargs)
 
     def fit(self, x, **kwargs):
@@ -179,12 +186,14 @@ class ConvolutionModel(LanguageModel):
         answer_embedding = embedding(answer)
 
         # cnn
-        cnns = [Convolution1D(filter_length=filter_length,
-                              nb_filter=500,
-                              activation='tanh',
-                              border_mode='same') for filter_length in [2, 3, 5, 7]]
-        question_cnn = merge([cnn(question_embedding) for cnn in cnns], mode='concat')
-        answer_cnn = merge([cnn(answer_embedding) for cnn in cnns], mode='concat')
+        cnns = [Conv1D(kernel_size=kernel_size,
+                       filters=500,
+                       activation='tanh',
+                       padding='same') for kernel_size in [2, 3, 5, 7]]
+        # question_cnn = merge([cnn(question_embedding) for cnn in cnns], mode='concat')
+        question_cnn = concatenate([cnn(question_embedding) for cnn in cnns], axis=-1)
+        # answer_cnn = merge([cnn(answer_embedding) for cnn in cnns], mode='concat')
+        answer_cnn = concatenate([cnn(answer_embedding) for cnn in cnns], axis=-1)
 
         # maxpooling
         maxpool = Lambda(lambda x: K.max(x, axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
@@ -209,24 +218,28 @@ class ConvolutionalLSTM(LanguageModel):
         question_embedding = embedding(question)
         answer_embedding = embedding(answer)
 
-        f_rnn = LSTM(141, return_sequences=True, consume_less='mem')
-        b_rnn = LSTM(141, return_sequences=True, consume_less='mem', go_backwards=True)
+        f_rnn = LSTM(141, return_sequences=True, implementation=1)
+        b_rnn = LSTM(141, return_sequences=True, implementation=1, go_backwards=True)
 
         qf_rnn = f_rnn(question_embedding)
         qb_rnn = b_rnn(question_embedding)
-        question_pool = merge([qf_rnn, qb_rnn], mode='concat', concat_axis=-1)
+        # question_pool = merge([qf_rnn, qb_rnn], mode='concat', concat_axis=-1)
+        question_pool = concatenate([qf_rnn, qb_rnn], axis=-1)
 
         af_rnn = f_rnn(answer_embedding)
         ab_rnn = b_rnn(answer_embedding)
-        answer_pool = merge([af_rnn, ab_rnn], mode='concat', concat_axis=-1)
+        # answer_pool = merge([af_rnn, ab_rnn], mode='concat', concat_axis=-1)
+        answer_pool = concatenate([af_rnn, ab_rnn], axis=-1)
 
         # cnn
-        cnns = [Convolution1D(filter_length=filter_length,
-                          nb_filter=500,
-                          activation='tanh',
-                          border_mode='same') for filter_length in [1, 2, 3, 5]]
-        question_cnn = merge([cnn(question_pool) for cnn in cnns], mode='concat')
-        answer_cnn = merge([cnn(answer_pool) for cnn in cnns], mode='concat')
+        cnns = [Conv1D(kernel_size=kernel_size,
+                       filters=500,
+                       activation='tanh',
+                       padding='same') for kernel_size in [1, 2, 3, 5]]
+        # question_cnn = merge([cnn(question_pool) for cnn in cnns], mode='concat')
+        question_cnn = concatenate([cnn(question_pool) for cnn in cnns], axis=-1)
+        # answer_cnn = merge([cnn(answer_pool) for cnn in cnns], mode='concat')
+        answer_cnn = concatenate([cnn(answer_pool) for cnn in cnns], axis=-1)
 
         maxpool = Lambda(lambda x: K.max(x, axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
         maxpool.supports_masking = True
