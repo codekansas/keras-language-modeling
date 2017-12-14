@@ -196,9 +196,9 @@ class ConvolutionModel(LanguageModel):
                        activation='tanh',
                        padding='same') for kernel_size in [2, 3, 5, 7]]
         # question_cnn = merge([cnn(question_embedding) for cnn in cnns], mode='concat')
-        question_cnn = concatenate([cnn(question_embedding) for cnn in cnns], axis=-1)
+        question_cnn = concatenate([cnn(question_hl) for cnn in cnns], axis=-1)
         # answer_cnn = merge([cnn(answer_embedding) for cnn in cnns], mode='concat')
-        answer_cnn = concatenate([cnn(answer_embedding) for cnn in cnns], axis=-1)
+        answer_cnn = concatenate([cnn(answer_hl) for cnn in cnns], axis=-1)
 
         # maxpooling
         maxpool = Lambda(lambda x: K.max(x, axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
