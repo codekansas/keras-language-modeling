@@ -238,12 +238,12 @@ if __name__ == '__main__':
         'n_words': 22353,
         'question_len': 150,
         'answer_len': 150,
-        'margin': 0.05,
+        'margin': 0.009,
         'initial_embed_weights': 'word2vec_100_dim.embeddings',
 
         'training': {
             'batch_size': 100,
-            'nb_epoch': 1,
+            'nb_epoch': 2000,
             'validation_split': 0.1,
         },
 
@@ -257,7 +257,7 @@ if __name__ == '__main__':
     }
 
     from keras_models import EmbeddingModel, ConvolutionModel, ConvolutionalLSTM
-    evaluator = Evaluator(conf, model=EmbeddingModel, optimizer='adam')
+    evaluator = Evaluator(conf, model=ConvolutionModel, optimizer='adam')
 
     # train the model
     best_loss = evaluator.train()
